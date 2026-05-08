@@ -68,3 +68,44 @@ class OpenAIService:
         self.chat_history[session_id] = updated_history[-CHAT_HISTORY_LIMIT:]
 
         return assistant_reply
+
+    async def stream_chat_response(
+        self,
+        question: str,
+        session_id: str = DEFAULT_SESSION_ID,
+        model: str = DEFAULT_MODEL,
+    ):
+        history = self.chat_history.get(session_id, [])
+
+        messages = [
+            {MESSAGE_ROLE_KEY: SYSTEM_ROLE, MESSAGE_CONTENT_KEY: CAR_SELLING_SYSTEM_PROMPT},
+            *history,
+            {MESSAGE_ROLE_KEY: SYSTEM_ROLE, MESSAGE_CONTENT_KEY: ENGLISH_ONLY_PROMPT},
+            {MESSAGE_ROLE_KEY: USER_ROLE, MESSAGE_CONTENT_KEY: question},
+        ]
+
+        stream = await self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=OPENAI_TEMPERATURE,
+            max_tokens=OPENAI_MAX_TOKENS,
+            stream=True,
+        )
+
+        chunks = []
+        async for event in stream:
+            chunk = event.choices[0].delta.content or ""
+            if not chunk:
+                continue
+
+            chunks.append(chunk)
+            yield chunk
+
+        assistant_reply = "".join(chunks)
+        updated_history = [
+            *history,
+            {MESSAGE_ROLE_KEY: USER_ROLE, MESSAGE_CONTENT_KEY: question},
+            {MESSAGE_ROLE_KEY: ASSISTANT_ROLE, MESSAGE_CONTENT_KEY: assistant_reply},
+        ]
+
+        self.chat_history[session_id] = updated_history[-CHAT_HISTORY_LIMIT:]

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from constants import (
     DOCUMENT_LIST_ROUTE,
@@ -7,16 +7,19 @@ from constants import (
     HTTP_INTERNAL_SERVER_ERROR,
     SERVICE_ERROR_PREFIX,
 )
-from app_services import document_service
+from app_services import get_document_service
 from models import DocumentListResponse, DocumentUploadResponse
 
 router = APIRouter()
 
 
 @router.post(DOCUMENT_UPLOAD_ROUTE, response_model=DocumentUploadResponse)
-async def upload_documents(files: List[UploadFile] = File(...)):
+async def upload_documents(files: Optional[List[UploadFile]] = File(default=None)):
     try:
-        return await document_service.upload_documents(files)
+        if not files:
+            raise ValueError("Please select at least one document.")
+
+        return await get_document_service().upload_documents(files)
 
     except ValueError as ve:
         raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=str(ve))
@@ -30,4 +33,4 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
 @router.get(DOCUMENT_LIST_ROUTE, response_model=DocumentListResponse)
 async def list_documents():
-    return {"documents": document_service.list_documents()}
+    return {"documents": get_document_service().list_documents()}

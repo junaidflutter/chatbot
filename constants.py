@@ -99,6 +99,40 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 
 CHAT_ROUTE = "/chat"
 
+SOCKET_IO_PATH = "socket.io"
+
+SOCKET_CORS_ALLOWED_ORIGINS = "*"
+
+SOCKET_CONNECT_EVENT = "connect"
+
+SOCKET_DISCONNECT_EVENT = "disconnect"
+
+SOCKET_JOIN_EVENT = "join_session"
+
+SOCKET_SEND_MESSAGE_EVENT = "send_message"
+
+SOCKET_MESSAGE_ACK_EVENT = "message_ack"
+
+SOCKET_ASSISTANT_TYPING_EVENT = "assistant_typing"
+
+SOCKET_ASSISTANT_CHUNK_EVENT = "assistant_chunk"
+
+SOCKET_ASSISTANT_DONE_EVENT = "assistant_done"
+
+SOCKET_ASSISTANT_ERROR_EVENT = "assistant_error"
+
+SOCKET_SESSION_ID_KEY = "session_id"
+
+SOCKET_QUESTION_KEY = "question"
+
+SOCKET_CHUNK_KEY = "chunk"
+
+SOCKET_DONE_KEY = "done"
+
+SOCKET_ERROR_KEY = "error"
+
+SOCKET_DEFAULT_ROOM_PREFIX = "session"
+
 DOCUMENT_UPLOAD_ROUTE = "/documents/upload"
 
 DOCUMENT_LIST_ROUTE = "/documents"

@@ -1,4 +1,3 @@
-from openai.types.chat import chat_completion_allowed_tool_choice_param
 import os
 from openai import AsyncOpenAI
 from dotenv import load_dotenv

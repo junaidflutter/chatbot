@@ -25,6 +25,9 @@ async def chat_page():
     button { margin-top: 12px; border: 0; border-radius: 6px; padding: 10px 14px; background: #1f6feb; color: white; cursor: pointer; }
     pre { white-space: pre-wrap; background: #101828; color: #e6edf3; border-radius: 8px; padding: 14px; min-height: 120px; }
     label { display: block; margin: 12px 0 6px; font-weight: 600; }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row button { flex: 0 0 auto; }
+    .status { color: #526070; font-size: 14px; margin-top: 10px; min-height: 20px; }
   </style>
 </head>
 <body>
@@ -38,15 +41,51 @@ async def chat_page():
       <input id="session" value="web-user">
       <label for="question">Question</label>
       <textarea id="question" placeholder="Ask about your uploaded car documents or car selling..."></textarea>
-      <button onclick="sendQuestion()">Ask</button>
+      <div class="row">
+        <button onclick="sendQuestion()">Ask with API</button>
+        <button onclick="sendSocketQuestion()">Ask with Socket Stream</button>
+      </div>
+      <div class="status" id="status"></div>
       <h2>Answer</h2>
       <pre id="answer"></pre>
     </section>
   </main>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
+    const socket = io();
+    const answer = document.getElementById("answer");
+    const status = document.getElementById("status");
+
+    socket.on("connect", () => {
+      status.textContent = "Socket connected";
+      socket.emit("join_session", {
+        session_id: document.getElementById("session").value
+      });
+    });
+
+    socket.on("message_ack", () => {
+      status.textContent = "Message received";
+    });
+
+    socket.on("assistant_typing", () => {
+      status.textContent = "Assistant is responding...";
+    });
+
+    socket.on("assistant_chunk", (data) => {
+      answer.textContent += data.chunk;
+    });
+
+    socket.on("assistant_done", () => {
+      status.textContent = "Done";
+    });
+
+    socket.on("assistant_error", (data) => {
+      status.textContent = data.error || "Socket error";
+    });
+
     async function sendQuestion() {
-      const answer = document.getElementById("answer");
       answer.textContent = "Loading...";
+      status.textContent = "";
       const response = await fetch("CHAT_API_PATH", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +95,28 @@ async def chat_page():
         })
       });
       const data = await response.json();
+      if (!response.ok) {
+        status.textContent = "API request failed";
+        answer.textContent = JSON.stringify(data, null, 2);
+        return;
+      }
+
       answer.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function sendSocketQuestion() {
+      const question = document.getElementById("question").value.trim();
+      if (!question) {
+        status.textContent = "Question is required";
+        return;
+      }
+
+      answer.textContent = "";
+      status.textContent = "Sending...";
+      socket.emit("send_message", {
+        question,
+        session_id: document.getElementById("session").value
+      });
     }
   </script>
 </body>

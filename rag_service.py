@@ -99,6 +99,48 @@ class RagService:
             SOURCES_RESPONSE_KEY: [],
         }
 
+    async def stream_answer_question(self, question: str, session_id: str):
+        if not self._should_search_documents(question):
+            async for chunk in self.openai_service.stream_chat_response(
+                question=question,
+                session_id=session_id,
+            ):
+                yield chunk
+            return
+
+        try:
+            query_vector = (await self.embedding_service.embed_texts([question]))[0]
+            matches = self.vector_store.search(query_vector, limit=RAG_TOP_K)
+            usable_matches = [match for match in matches if match.score >= RAG_MIN_SCORE]
+        except Exception:
+            async for chunk in self.openai_service.stream_chat_response(
+                question=question,
+                session_id=session_id,
+            ):
+                yield chunk
+            return
+
+        if not usable_matches:
+            async for chunk in self.openai_service.stream_chat_response(
+                question=question,
+                session_id=session_id,
+            ):
+                yield chunk
+            return
+
+        context = self._build_context(usable_matches)
+        document_result = await self._answer_from_context(question, context)
+
+        if not document_result.get("can_answer_from_context"):
+            async for chunk in self.openai_service.stream_chat_response(
+                question=question,
+                session_id=session_id,
+            ):
+                yield chunk
+            return
+
+        yield document_result.get("answer", "")
+
     def _should_search_documents(self, question: str) -> bool:
         normalized_question = question.lower()
         return any(keyword in normalized_question for keyword in CAR_RELATED_KEYWORDS)

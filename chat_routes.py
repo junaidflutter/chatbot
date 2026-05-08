@@ -10,7 +10,7 @@ from constants import (
     USER_LOG_LABEL,
     USER_ROLE,
 )
-from app_services import rag_service
+from app_services import get_rag_service
 from models import ChatRequest, ChatResponse
 from utils import format_as_json, log_json
 
@@ -23,7 +23,7 @@ async def chat_with_bot(request: ChatRequest):
         user_data = format_as_json(USER_ROLE, request.question)
         log_json(USER_LOG_LABEL, user_data)
 
-        return await rag_service.answer_question(
+        return await get_rag_service().answer_question(
             question=request.question,
             session_id=request.session_id,
         )

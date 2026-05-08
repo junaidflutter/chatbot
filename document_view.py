@@ -42,8 +42,14 @@ async def document_page():
   <script>
     async function uploadDocuments() {
       const result = document.getElementById("result");
+      const selectedFiles = document.getElementById("files").files;
+      if (!selectedFiles.length) {
+        result.textContent = "Please select at least one document.";
+        return;
+      }
+
       const formData = new FormData();
-      for (const file of document.getElementById("files").files) {
+      for (const file of selectedFiles) {
         formData.append("files", file);
       }
       result.textContent = "Uploading...";
@@ -52,6 +58,11 @@ async def document_page():
         body: formData
       });
       const data = await response.json();
+      if (!response.ok) {
+        result.textContent = JSON.stringify(data, null, 2);
+        return;
+      }
+
       result.textContent = JSON.stringify(data, null, 2);
     }
 
