@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from constants import (
@@ -16,6 +17,7 @@ from constants import (
     OPENAI_TEMPERATURE,
     SYSTEM_ROLE,
     USER_ROLE,
+    VOICE_TRANSCRIPTION_PROMPT,
 )
 
 load_dotenv()
@@ -68,6 +70,28 @@ class OpenAIService:
         self.chat_history[session_id] = updated_history[-CHAT_HISTORY_LIMIT:]
 
         return assistant_reply
+
+    async def transcribe_audio_bytes(
+        self,
+        audio_bytes: bytes,
+        filename: str = "voice.webm",
+    ) -> str:
+        buffer = BytesIO(audio_bytes)
+        buffer.name = filename
+
+        for model in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"):
+            try:
+                response = await self.client.audio.transcriptions.create(
+                    model=model,
+                    file=buffer,
+                    language="en",
+                    prompt=VOICE_TRANSCRIPTION_PROMPT,
+                )
+                return (response.text or "").strip()
+            except Exception:
+                buffer.seek(0)
+
+        return ""
 
     async def stream_chat_response(
         self,

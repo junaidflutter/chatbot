@@ -1,5 +1,10 @@
+import base64
+from binascii import Error as BinasciiError
 from app_services import get_rag_service
 from constants import (
+    SOCKET_AUDIO_BASE64_KEY,
+    SOCKET_AUDIO_FILENAME_KEY,
+    SOCKET_AUDIO_MIME_TYPE_KEY,
     DEFAULT_SESSION_ID,
     SOCKET_ASSISTANT_CHUNK_EVENT,
     SOCKET_ASSISTANT_DONE_EVENT,
@@ -15,7 +20,11 @@ from constants import (
     SOCKET_QUESTION_KEY,
     SOCKET_SEND_MESSAGE_EVENT,
     SOCKET_SESSION_ID_KEY,
+    SOCKET_VOICE_AUDIO_EVENT,
+    SOCKET_VOICE_TRANSCRIPT_EVENT,
+    SOCKET_VOICE_TRANSCRIBING_EVENT,
 )
+from app_services import get_openai_service
 from socket_rooms import session_room
 from socket_server import sio
 
@@ -89,6 +98,64 @@ async def send_message(sid, data):
         )
 
 
+@sio.on(SOCKET_VOICE_AUDIO_EVENT)
+async def voice_audio(sid, data):
+    session_id = _get_session_id(data)
+    audio_b64 = (data or {}).get(SOCKET_AUDIO_BASE64_KEY, "").strip()
+    filename = (data or {}).get(SOCKET_AUDIO_FILENAME_KEY) or "voice.webm"
+
+    if not audio_b64:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: "Audio is required."},
+            to=sid,
+        )
+        return
+
+    try:
+        audio_bytes = _decode_audio_payload(audio_b64)
+    except (ValueError, BinasciiError) as exc:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: str(exc)},
+            to=sid,
+        )
+        return
+
+    await sio.emit(
+        SOCKET_VOICE_TRANSCRIBING_EVENT,
+        {SOCKET_SESSION_ID_KEY: session_id},
+        to=sid,
+    )
+
+    try:
+        transcript = await get_openai_service().transcribe_audio_bytes(
+            audio_bytes,
+            filename=filename,
+        )
+        if not transcript:
+            raise ValueError("Could not understand the audio. Please try again.")
+
+        await sio.emit(
+            SOCKET_VOICE_TRANSCRIPT_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_QUESTION_KEY: transcript},
+            to=sid,
+        )
+    except Exception as exc:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: str(exc)},
+            to=sid,
+        )
+
+
 def _get_session_id(data) -> str:
     session_id = (data or {}).get(SOCKET_SESSION_ID_KEY) or DEFAULT_SESSION_ID
     return str(session_id).strip() or DEFAULT_SESSION_ID
+
+
+def _decode_audio_payload(audio_b64: str) -> bytes:
+    if "," in audio_b64 and audio_b64.startswith("data:"):
+        audio_b64 = audio_b64.split(",", 1)[1]
+
+    return base64.b64decode(audio_b64)

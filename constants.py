@@ -111,6 +111,12 @@ SOCKET_JOIN_EVENT = "join_session"
 
 SOCKET_SEND_MESSAGE_EVENT = "send_message"
 
+SOCKET_VOICE_AUDIO_EVENT = "voice_audio"
+
+SOCKET_VOICE_TRANSCRIBING_EVENT = "voice_transcribing"
+
+SOCKET_VOICE_TRANSCRIPT_EVENT = "voice_transcript"
+
 SOCKET_MESSAGE_ACK_EVENT = "message_ack"
 
 SOCKET_ASSISTANT_TYPING_EVENT = "assistant_typing"
@@ -124,6 +130,12 @@ SOCKET_ASSISTANT_ERROR_EVENT = "assistant_error"
 SOCKET_SESSION_ID_KEY = "session_id"
 
 SOCKET_QUESTION_KEY = "question"
+
+SOCKET_AUDIO_BASE64_KEY = "audio_base64"
+
+SOCKET_AUDIO_MIME_TYPE_KEY = "mime_type"
+
+SOCKET_AUDIO_FILENAME_KEY = "audio_filename"
 
 SOCKET_CHUNK_KEY = "chunk"
 
@@ -140,6 +152,10 @@ DOCUMENT_LIST_ROUTE = "/documents"
 CHAT_VIEW_ROUTE = "/"
 
 DOCUMENT_VIEW_ROUTE = "/documents/view"
+
+VOICE_VIEW_ROUTE = "/voice"
+
+VOICE_TRANSCRIBE_ROUTE = "/voice/transcribe"
 
 HEALTH_ROUTE = "/health"
 
@@ -195,6 +211,12 @@ Important rules:
 - Keep every answer short, usually under 120 words.
 - Always reply in English only, even if the user writes in another language.
 - Never reply in Spanish, Urdu, Roman Urdu, or any language other than English.
+"""
+
+VOICE_TRANSCRIPTION_PROMPT = """
+This is a short English voice conversation about selling cars and car-related guidance.
+Preserve the user's wording as closely as possible.
+Common terms may include reference, referral, registration, transfer, mileage, engine, documents, inspection, negotiate, and car model names.
 """
 
 ENGLISH_ONLY_PROMPT = "Reply in English only. Do not use Spanish or any other language."

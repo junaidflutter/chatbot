@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from constants import CHAT_VIEW_ROUTE, DOCUMENT_LIST_ROUTE, DOCUMENT_UPLOAD_ROUTE, DOCUMENT_VIEW_ROUTE
+from constants import (
+    CHAT_VIEW_ROUTE,
+    DOCUMENT_LIST_ROUTE,
+    DOCUMENT_UPLOAD_ROUTE,
+    DOCUMENT_VIEW_ROUTE,
+    VOICE_VIEW_ROUTE,
+)
 
 router = APIRouter()
 
@@ -18,6 +24,7 @@ async def document_page():
     body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fb; color: #172033; }
     main { max-width: 900px; margin: 32px auto; padding: 0 20px; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    nav { display: flex; gap: 14px; flex-wrap: wrap; }
     a { color: #0f62fe; text-decoration: none; }
     .panel { background: white; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; }
     input { display: block; margin: 14px 0; }
@@ -29,7 +36,10 @@ async def document_page():
   <main>
     <header>
       <h1>Documents</h1>
-      <a href="CHAT_VIEW_PATH">Chat</a>
+      <nav>
+        <a href="CHAT_VIEW_PATH">Chat</a>
+        <a href="VOICE_VIEW_PATH">Voice chat</a>
+      </nav>
     </header>
     <section class="panel">
       <input id="files" type="file" multiple accept=".txt,.md,.pdf">
@@ -77,6 +87,7 @@ async def document_page():
 """
     return (
         html.replace("CHAT_VIEW_PATH", CHAT_VIEW_ROUTE)
+        .replace("VOICE_VIEW_PATH", VOICE_VIEW_ROUTE)
         .replace("DOCUMENT_UPLOAD_PATH", DOCUMENT_UPLOAD_ROUTE)
         .replace("DOCUMENT_LIST_PATH", DOCUMENT_LIST_ROUTE)
     )

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from constants import CHAT_ROUTE, DOCUMENT_VIEW_ROUTE, CHAT_VIEW_ROUTE
+from constants import CHAT_ROUTE, DOCUMENT_VIEW_ROUTE, CHAT_VIEW_ROUTE, VOICE_VIEW_ROUTE
 
 router = APIRouter()
 
@@ -34,7 +34,10 @@ async def chat_page():
   <main>
     <header>
       <h1>Chat</h1>
-      <a href="DOCUMENT_VIEW_PATH">Upload documents</a>
+      <nav>
+        <a href="VOICE_VIEW_PATH">Voice chat</a>
+        <a href="DOCUMENT_VIEW_PATH">Upload documents</a>
+      </nav>
     </header>
     <section class="panel">
       <label for="session">Session ID</label>
@@ -122,7 +125,14 @@ async def chat_page():
 </body>
 </html>
 """
-    return html.replace("DOCUMENT_VIEW_PATH", DOCUMENT_VIEW_ROUTE).replace(
-        "CHAT_API_PATH",
-        CHAT_ROUTE,
+    return (
+        html.replace("VOICE_VIEW_PATH", VOICE_VIEW_ROUTE)
+        .replace(
+            "DOCUMENT_VIEW_PATH",
+            DOCUMENT_VIEW_ROUTE,
+        )
+        .replace(
+            "CHAT_API_PATH",
+            CHAT_ROUTE,
+        )
     )
