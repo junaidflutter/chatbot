@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from constants import (
+    AUTH_VIEW_ROUTE,
     CHAT_VIEW_ROUTE,
     DOCUMENT_VIEW_ROUTE,
     SOCKET_AUDIO_BASE64_KEY,
@@ -87,6 +88,7 @@ async def voice_page():
       font-weight: 700;
     }
     button.secondary { background: #5b6677; }
+    button.ghost { background: #e9eef7; color: var(--text); border: 1px solid var(--border); }
     button:disabled { background: #aeb8c8; cursor: not-allowed; }
     .statusbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .chip {
@@ -192,6 +194,8 @@ async def voice_page():
         <div class="subtle">Speak a question, let the assistant answer it, then continue with the next one.</div>
       </div>
       <nav>
+        <a href="AUTH_VIEW_PATH">Login</a>
+        <a href="SIGNUP_VIEW_PATH">Signup</a>
         <a href="CHAT_VIEW_PATH">Text chat</a>
         <a href="DOCUMENT_VIEW_PATH">Upload documents</a>
       </nav>
@@ -205,6 +209,8 @@ async def voice_page():
 
           <div class="controls">
             <button id="startButton" onclick="startVoiceLoop()">Start voice chat</button>
+            <button id="talkButton" class="secondary" style="display:none">Hold to talk</button>
+            <button id="modeButton" class="ghost" type="button">Mode: Hands-free</button>
             <button id="stopButton" class="secondary" onclick="stopVoiceLoop()" disabled>Stop</button>
           </div>
 
@@ -236,6 +242,8 @@ async def voice_page():
   <script>
     const socket = io();
     const startButton = document.getElementById("startButton");
+    const talkButton = document.getElementById("talkButton");
+    const modeButton = document.getElementById("modeButton");
     const stopButton = document.getElementById("stopButton");
     const statusEl = document.getElementById("status");
     const modeLabel = document.getElementById("modeLabel");
@@ -243,16 +251,28 @@ async def voice_page():
     const feedEl = document.getElementById("feed");
     const meterFill = document.getElementById("meterFill");
 
+    function getAccessToken() {
+      return localStorage.getItem("access_token") || "";
+    }
+
+    if (!getAccessToken()) {
+      window.location.href = "/login";
+    }
+
     let audioContext = null;
     let analyser = null;
     let micStream = null;
     let mediaRecorder = null;
+    let browserRecognition = null;
+    let speechVoices = [];
+    let selectedVoice = null;
     let recorderChunks = [];
     let vadFrame = null;
     let silenceTimer = null;
     let captureTimeout = null;
     let resumeListenAt = 0;
     let voiceLoopActive = false;
+    let recordingMode = "handsfree";
     let recording = false;
     let uploading = false;
     let phase = "stopped";
@@ -261,7 +281,7 @@ async def voice_page():
     let pendingTranscript = "";
 
     socket.on("connect", () => {
-      socket.emit("join_session", { session_id: getSessionId() });
+      socket.emit("join_session", { session_id: getSessionId(), access_token: getAccessToken() });
       setStatus("Socket connected", "stopped");
     });
 
@@ -294,7 +314,7 @@ async def voice_page():
     socket.on("assistant_error", (data) => {
       phase = "idle";
       setStatus(data.error || "Socket error", phase, true);
-      if (voiceLoopActive) {
+      if (voiceLoopActive && recordingMode === "handsfree") {
         scheduleResumeListening(1200);
       }
     });
@@ -310,7 +330,7 @@ async def voice_page():
       if (!pendingTranscript) {
         phase = "idle";
         setStatus("Empty transcript", phase, true);
-        if (voiceLoopActive) {
+        if (voiceLoopActive && recordingMode === "handsfree") {
           scheduleResumeListening(900);
         }
         return;
@@ -322,8 +342,38 @@ async def voice_page():
       setStatus("Sending question", phase);
       socket.emit("send_message", {
         question: pendingTranscript,
-        session_id: getSessionId()
+        session_id: getSessionId(),
+        access_token: getAccessToken()
       });
+    });
+
+    modeButton.addEventListener("click", () => {
+      recordingMode = recordingMode === "handsfree" ? "push-to-talk" : "handsfree";
+      updateModeUI();
+    });
+
+    talkButton.addEventListener("pointerdown", () => {
+      if (recordingMode === "push-to-talk") {
+        startCapture();
+      }
+    });
+
+    talkButton.addEventListener("pointerup", () => {
+      if (recordingMode === "push-to-talk") {
+        stopCapture();
+      }
+    });
+
+    talkButton.addEventListener("pointercancel", () => {
+      if (recordingMode === "push-to-talk") {
+        stopCapture();
+      }
+    });
+
+    talkButton.addEventListener("pointerleave", () => {
+      if (recordingMode === "push-to-talk" && recording) {
+        stopCapture();
+      }
     });
 
     async function startVoiceLoop() {
@@ -338,14 +388,18 @@ async def voice_page():
 
         setupVad(micStream);
         setupRecorder(micStream);
+        setupBrowserRecognition();
+        loadSpeechVoices();
 
         voiceLoopActive = true;
         phase = "idle";
         startButton.disabled = true;
         stopButton.disabled = false;
-        modeLabel.textContent = "Ready";
+        updateModeUI();
         setStatus("Ready to listen", phase);
-        startCapture();
+        if (recordingMode === "handsfree") {
+          startCapture();
+        }
       } catch (error) {
         setStatus("Mic permission failed: " + error.message, "stopped", true);
       }
@@ -357,11 +411,13 @@ async def voice_page():
       recording = false;
       uploading = false;
       startButton.disabled = false;
+      talkButton.style.display = "none";
       stopButton.disabled = true;
       modeLabel.textContent = "Stopped";
       setStatus("Stopped", phase);
       draftEl.textContent = "";
       window.speechSynthesis.cancel();
+      stopBrowserRecognition();
 
       if (silenceTimer) {
         clearTimeout(silenceTimer);
@@ -390,6 +446,12 @@ async def voice_page():
       meterFill.style.width = "0%";
     }
 
+    function updateModeUI() {
+      modeButton.textContent = recordingMode === "handsfree" ? "Mode: Hands-free" : "Mode: Push-to-talk";
+      talkButton.style.display = voiceLoopActive && recordingMode === "push-to-talk" ? "inline-flex" : "none";
+      startButton.textContent = recordingMode === "handsfree" ? "Start voice chat" : "Enable mic";
+    }
+
     function setupRecorder(stream) {
       mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       recorderChunks = [];
@@ -402,6 +464,7 @@ async def voice_page():
 
       mediaRecorder.onstop = async () => {
         recording = false;
+        stopBrowserRecognition();
         if (captureTimeout) {
           clearTimeout(captureTimeout);
           captureTimeout = null;
@@ -412,7 +475,9 @@ async def voice_page():
         if (!voiceLoopActive || audioBlob.size === 0) {
           if (voiceLoopActive && phase !== "speaking") {
             phase = "idle";
-            scheduleResumeListening(500);
+            if (recordingMode === "handsfree") {
+              scheduleResumeListening(500);
+            }
           }
           return;
         }
@@ -427,6 +492,7 @@ async def voice_page():
           setStatus("Uploading audio over socket", phase);
           socket.emit("voice_audio", {
             session_id: getSessionId(),
+            access_token: getAccessToken(),
             audio_base64: audioBase64,
             mime_type: audioBlob.type || "audio/webm",
             audio_filename: "voice.webm"
@@ -435,7 +501,7 @@ async def voice_page():
           uploading = false;
           phase = "idle";
           setStatus("Transcription failed: " + error.message, phase, true);
-          if (voiceLoopActive) {
+          if (voiceLoopActive && recordingMode === "handsfree") {
             scheduleResumeListening(1200);
           }
         }
@@ -487,6 +553,8 @@ async def voice_page():
               }
             }, 1300);
           }
+        } else if (phase === "speaking" && level > 12) {
+          interruptAssistant();
         }
 
         vadFrame = requestAnimationFrame(renderMeter);
@@ -495,9 +563,102 @@ async def voice_page():
       renderMeter();
     }
 
-    function startCapture() {
-      if (!voiceLoopActive || recording || uploading || phase === "speaking" || !mediaRecorder) {
+    function setupBrowserRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        browserRecognition = null;
         return;
+      }
+
+      browserRecognition = new SpeechRecognition();
+      browserRecognition.lang = "en-US";
+      browserRecognition.continuous = true;
+      browserRecognition.interimResults = true;
+
+      browserRecognition.onresult = (event) => {
+        if (phase !== "recording") {
+          return;
+        }
+
+        let liveText = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          liveText += event.results[i][0].transcript;
+        }
+
+        const clean = liveText.trim();
+        if (clean) {
+          draftEl.textContent = clean;
+        }
+      };
+
+      browserRecognition.onerror = () => {};
+      window.speechSynthesis.onvoiceschanged = () => {
+        loadSpeechVoices();
+      };
+    }
+
+    function startBrowserRecognition() {
+      if (!browserRecognition) {
+        return;
+      }
+
+      try {
+        browserRecognition.start();
+      } catch (error) {
+      }
+    }
+
+    function stopBrowserRecognition() {
+      if (!browserRecognition) {
+        return;
+      }
+
+      try {
+        browserRecognition.abort();
+      } catch (error) {
+      }
+    }
+
+    function loadSpeechVoices() {
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || !voices.length) {
+        return;
+      }
+
+      speechVoices = voices;
+      selectedVoice = pickBestVoice(voices);
+    }
+
+    function pickBestVoice(voices) {
+      const preferred = voices.find((voice) => {
+        const name = (voice.name || "").toLowerCase();
+        return name.includes("natural") || name.includes("google") || name.includes("microsoft") || name.includes("samantha") || name.includes("aria") || name.includes("zira");
+      });
+
+      return preferred || voices[0] || null;
+    }
+
+    function interruptAssistant() {
+      if (phase !== "speaking") {
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      phase = "idle";
+      modeLabel.textContent = "Ready";
+      setStatus("Interrupted", phase);
+      if (voiceLoopActive && recordingMode === "handsfree") {
+        scheduleResumeListening(900);
+      }
+    }
+
+    function startCapture() {
+      if (!voiceLoopActive || recording || uploading || !mediaRecorder) {
+        return;
+      }
+
+      if (phase === "speaking") {
+        interruptAssistant();
       }
 
       phase = "recording";
@@ -506,6 +667,7 @@ async def voice_page():
         recorderChunks = [];
         mediaRecorder.start();
         recording = true;
+        startBrowserRecognition();
         if (captureTimeout) {
           clearTimeout(captureTimeout);
         }
@@ -523,9 +685,11 @@ async def voice_page():
 
     function stopCapture() {
       if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        stopBrowserRecognition();
         return;
       }
 
+      stopBrowserRecognition();
       try {
         mediaRecorder.stop();
       } catch (error) {
@@ -538,7 +702,7 @@ async def voice_page():
       if (!answer) {
         phase = "idle";
         setStatus("Ready for next question", phase);
-        if (voiceLoopActive) {
+        if (voiceLoopActive && recordingMode === "handsfree") {
           scheduleResumeListening(1600);
         }
         return;
@@ -547,8 +711,9 @@ async def voice_page():
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(answer);
       utterance.lang = "en-US";
-      utterance.rate = 1.0;
+      utterance.rate = 1.08;
       utterance.pitch = 1;
+      utterance.voice = selectedVoice;
       utterance.onstart = () => {
         modeLabel.textContent = "Speaking";
       };
@@ -556,7 +721,7 @@ async def voice_page():
         phase = "idle";
         modeLabel.textContent = "Ready";
         setStatus("Ready for next question", phase);
-        if (voiceLoopActive) {
+        if (voiceLoopActive && recordingMode === "handsfree") {
           scheduleResumeListening(1800);
         }
       };
@@ -564,7 +729,7 @@ async def voice_page():
         phase = "idle";
         modeLabel.textContent = "Ready";
         setStatus("Speech playback failed", phase, true);
-        if (voiceLoopActive) {
+        if (voiceLoopActive && recordingMode === "handsfree") {
           scheduleResumeListening(1800);
         }
       };
@@ -657,6 +822,6 @@ async def voice_page():
 </body>
 </html>
 """
-    return html.replace("CHAT_VIEW_PATH", CHAT_VIEW_ROUTE).replace(
+    return html.replace("AUTH_VIEW_PATH", AUTH_VIEW_ROUTE).replace("SIGNUP_VIEW_PATH", "/signup").replace("CHAT_VIEW_PATH", CHAT_VIEW_ROUTE).replace(
         "DOCUMENT_VIEW_PATH", DOCUMENT_VIEW_ROUTE
     )

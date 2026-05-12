@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from constants import (
     CHAT_ROUTE,
     HEALTH_ROUTE,
@@ -11,6 +11,7 @@ from constants import (
     USER_ROLE,
 )
 from app_services import get_rag_service
+from auth_dependencies import get_current_user
 from models import ChatRequest, ChatResponse
 from utils import format_as_json, log_json
 
@@ -18,7 +19,7 @@ router = APIRouter()
 
 
 @router.post(CHAT_ROUTE, response_model=ChatResponse)
-async def chat_with_bot(request: ChatRequest):
+async def chat_with_bot(request: ChatRequest, current_user=Depends(get_current_user)):
     try:
         user_data = format_as_json(USER_ROLE, request.question)
         log_json(USER_LOG_LABEL, user_data)
@@ -26,6 +27,7 @@ async def chat_with_bot(request: ChatRequest):
         return await get_rag_service().answer_question(
             question=request.question,
             session_id=request.session_id,
+            user_id=current_user["id"],
         )
 
     except ValueError as ve:

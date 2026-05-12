@@ -6,6 +6,7 @@ from constants import (
     SOCKET_AUDIO_FILENAME_KEY,
     SOCKET_AUDIO_MIME_TYPE_KEY,
     DEFAULT_SESSION_ID,
+    AUTH_ACCESS_TOKEN_KEY,
     SOCKET_ASSISTANT_CHUNK_EVENT,
     SOCKET_ASSISTANT_DONE_EVENT,
     SOCKET_ASSISTANT_ERROR_EVENT,
@@ -25,6 +26,7 @@ from constants import (
     SOCKET_VOICE_TRANSCRIBING_EVENT,
 )
 from app_services import get_openai_service
+from app_services import get_auth_service
 from socket_rooms import session_room
 from socket_server import sio
 
@@ -42,6 +44,14 @@ async def disconnect(sid):
 @sio.on(SOCKET_JOIN_EVENT)
 async def join_session(sid, data):
     session_id = _get_session_id(data)
+    user_id = await _get_socket_user_id(data)
+    if not user_id:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: "Authentication required."},
+            to=sid,
+        )
+        return
     await sio.enter_room(sid, session_room(session_id))
     await sio.emit(
         SOCKET_MESSAGE_ACK_EVENT,
@@ -53,6 +63,14 @@ async def join_session(sid, data):
 @sio.on(SOCKET_SEND_MESSAGE_EVENT)
 async def send_message(sid, data):
     session_id = _get_session_id(data)
+    user_id = await _get_socket_user_id(data)
+    if not user_id:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: "Authentication required."},
+            to=sid,
+        )
+        return
     question = (data or {}).get(SOCKET_QUESTION_KEY, "").strip()
 
     if not question:
@@ -69,7 +87,7 @@ async def send_message(sid, data):
     await sio.emit(SOCKET_ASSISTANT_TYPING_EVENT, {SOCKET_SESSION_ID_KEY: session_id}, to=room)
 
     try:
-        async for chunk in get_rag_service().stream_answer_question(question, session_id):
+        async for chunk in get_rag_service().stream_answer_question(question, session_id, user_id=user_id):
             await sio.emit(
                 SOCKET_ASSISTANT_CHUNK_EVENT,
                 {
@@ -101,6 +119,14 @@ async def send_message(sid, data):
 @sio.on(SOCKET_VOICE_AUDIO_EVENT)
 async def voice_audio(sid, data):
     session_id = _get_session_id(data)
+    user_id = await _get_socket_user_id(data)
+    if not user_id:
+        await sio.emit(
+            SOCKET_ASSISTANT_ERROR_EVENT,
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_ERROR_KEY: "Authentication required."},
+            to=sid,
+        )
+        return
     audio_b64 = (data or {}).get(SOCKET_AUDIO_BASE64_KEY, "").strip()
     filename = (data or {}).get(SOCKET_AUDIO_FILENAME_KEY) or "voice.webm"
 
@@ -138,7 +164,7 @@ async def voice_audio(sid, data):
 
         await sio.emit(
             SOCKET_VOICE_TRANSCRIPT_EVENT,
-            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_QUESTION_KEY: transcript},
+            {SOCKET_SESSION_ID_KEY: session_id, SOCKET_QUESTION_KEY: transcript, "user_id": user_id},
             to=sid,
         )
     except Exception as exc:
@@ -159,3 +185,15 @@ def _decode_audio_payload(audio_b64: str) -> bytes:
         audio_b64 = audio_b64.split(",", 1)[1]
 
     return base64.b64decode(audio_b64)
+
+
+async def _get_socket_user_id(data) -> str | None:
+    token = (data or {}).get(AUTH_ACCESS_TOKEN_KEY, "").strip()
+    if not token:
+        return None
+
+    payload = get_auth_service().verify_token(token)
+    if not payload:
+        return None
+
+    return payload["user_id"]

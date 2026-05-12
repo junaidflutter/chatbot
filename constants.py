@@ -4,6 +4,66 @@ APP_HOST = "127.0.0.1"
 
 APP_PORT = 8000
 
+MONGODB_URL_ENV = "MONGODB_URL"
+
+MONGODB_DB_ENV = "MONGODB_DB"
+
+MONGODB_URL_DEFAULT = "mongodb://localhost:27017"
+
+MONGODB_DB_DEFAULT = "chatbot"
+
+AUTH_SECRET_ENV = "AUTH_SECRET_KEY"
+
+AUTH_SECRET_DEFAULT = "dev-secret-change-me"
+
+AUTH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7
+
+AUTH_ROUTE = "/auth"
+
+AUTH_VIEW_ROUTE = "/login"
+
+SIGNUP_VIEW_ROUTE = "/signup"
+
+AUTH_HEADER_NAME = "Authorization"
+
+AUTH_BEARER_PREFIX = "Bearer "
+
+AUTH_TOKEN_TYPE = "bearer"
+
+ANONYMOUS_USER_ID = "anonymous"
+
+AUTH_ACCESS_TOKEN_KEY = "access_token"
+
+AUTH_USER_KEY = "user"
+
+USER_ID_KEY = "user_id"
+
+EMAIL_KEY = "email"
+
+NAME_KEY = "name"
+
+PASSWORD_KEY = "password"
+
+PASSWORD_HASH_KEY = "password_hash"
+
+CREATED_AT_KEY = "created_at"
+
+UPDATED_AT_KEY = "updated_at"
+
+SESSION_ID_KEY = "session_id"
+
+DOCUMENT_ID_KEY = "document_id"
+
+UPLOAD_STATUS_KEY = "upload_status"
+
+CHAT_HISTORY_KEY = "chat_history"
+
+DOCUMENTS_COLLECTION_KEY = "documents"
+
+USERS_COLLECTION_KEY = "users"
+
+MESSAGES_COLLECTION_KEY = "messages"
+
 OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
 
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -99,6 +159,8 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 
 CHAT_ROUTE = "/chat"
 
+CHAT_HISTORY_ROUTE = "/chat/history"
+
 SOCKET_IO_PATH = "socket.io"
 
 SOCKET_CORS_ALLOWED_ORIGINS = "*"
@@ -149,7 +211,9 @@ DOCUMENT_UPLOAD_ROUTE = "/documents/upload"
 
 DOCUMENT_LIST_ROUTE = "/documents"
 
-CHAT_VIEW_ROUTE = "/"
+ROOT_ROUTE = "/"
+
+CHAT_VIEW_ROUTE = "/chat"
 
 DOCUMENT_VIEW_ROUTE = "/documents/view"
 
@@ -184,6 +248,10 @@ DOCUMENTS_RESPONSE_KEY = "documents"
 UPLOADED_FILES_RESPONSE_KEY = "uploaded_files"
 
 TOTAL_CHUNKS_RESPONSE_KEY = "total_chunks"
+
+CITATIONS_RESPONSE_KEY = "citations"
+
+EXCERPT_RESPONSE_KEY = "excerpt"
 
 HEALTH_STATUS_KEY = "status"
 

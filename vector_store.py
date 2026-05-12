@@ -1,8 +1,8 @@
 import atexit
 from uuid import uuid4
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
-from constants import EMBEDDING_DIMENSION, FILENAME_RESPONSE_KEY, QDRANT_COLLECTION_NAME, QDRANT_PATH
+from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
+from constants import EMBEDDING_DIMENSION, FILENAME_RESPONSE_KEY, QDRANT_COLLECTION_NAME, QDRANT_PATH, USER_ID_KEY
 
 
 class VectorStore:
@@ -43,19 +43,21 @@ class VectorStore:
         )
         return len(points)
 
-    def search(self, vector: list[float], limit: int):
+    def search(self, vector: list[float], limit: int, user_id: str | None = None):
         response = self.client.query_points(
             collection_name=self.collection_name,
             query=vector,
+            query_filter=self._build_filter(user_id),
             limit=limit,
             with_payload=True,
         )
         return response.points
 
-    def list_documents(self) -> list[str]:
+    def list_documents(self, user_id: str | None = None) -> list[str]:
         points, _ = self.client.scroll(
             collection_name=self.collection_name,
             limit=1000,
+            scroll_filter=self._build_filter(user_id),
             with_payload=True,
             with_vectors=False,
         )
@@ -68,3 +70,16 @@ class VectorStore:
 
     def close(self):
         self.client.close()
+
+    def _build_filter(self, user_id: str | None):
+        if not user_id:
+            return None
+
+        return Filter(
+            must=[
+                FieldCondition(
+                    key=USER_ID_KEY,
+                    match=MatchValue(value=user_id),
+                )
+            ]
+        )

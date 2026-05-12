@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from constants import (
+    AUTH_VIEW_ROUTE,
     CHAT_VIEW_ROUTE,
     DOCUMENT_LIST_ROUTE,
     DOCUMENT_UPLOAD_ROUTE,
@@ -37,6 +38,8 @@ async def document_page():
     <header>
       <h1>Documents</h1>
       <nav>
+        <a href="AUTH_VIEW_PATH">Login</a>
+        <a href="SIGNUP_VIEW_PATH">Signup</a>
         <a href="CHAT_VIEW_PATH">Chat</a>
         <a href="VOICE_VIEW_PATH">Voice chat</a>
       </nav>
@@ -50,6 +53,14 @@ async def document_page():
     </section>
   </main>
   <script>
+    function getAccessToken() {
+      return localStorage.getItem("access_token") || "";
+    }
+
+    if (!getAccessToken()) {
+      window.location.href = "/login";
+    }
+
     async function uploadDocuments() {
       const result = document.getElementById("result");
       const selectedFiles = document.getElementById("files").files;
@@ -65,6 +76,9 @@ async def document_page():
       result.textContent = "Uploading...";
       const response = await fetch("DOCUMENT_UPLOAD_PATH", {
         method: "POST",
+        headers: {
+          Authorization: "Bearer " + getAccessToken()
+        },
         body: formData
       });
       const data = await response.json();
@@ -77,7 +91,11 @@ async def document_page():
     }
 
     async function loadDocuments() {
-      const response = await fetch("DOCUMENT_LIST_PATH");
+      const response = await fetch("DOCUMENT_LIST_PATH", {
+        headers: {
+          Authorization: "Bearer " + getAccessToken()
+        }
+      });
       const data = await response.json();
       document.getElementById("result").textContent = JSON.stringify(data, null, 2);
     }
@@ -85,9 +103,15 @@ async def document_page():
 </body>
 </html>
 """
-    return (
-        html.replace("CHAT_VIEW_PATH", CHAT_VIEW_ROUTE)
-        .replace("VOICE_VIEW_PATH", VOICE_VIEW_ROUTE)
-        .replace("DOCUMENT_UPLOAD_PATH", DOCUMENT_UPLOAD_ROUTE)
-        .replace("DOCUMENT_LIST_PATH", DOCUMENT_LIST_ROUTE)
+    return html.replace("AUTH_VIEW_PATH", AUTH_VIEW_ROUTE).replace(
+        "SIGNUP_VIEW_PATH",
+        "/signup",
+    ).replace(
+        "CHAT_VIEW_PATH", CHAT_VIEW_ROUTE
+    ).replace(
+        "VOICE_VIEW_PATH", VOICE_VIEW_ROUTE
+    ).replace(
+        "DOCUMENT_UPLOAD_PATH", DOCUMENT_UPLOAD_ROUTE
+    ).replace(
+        "DOCUMENT_LIST_PATH", DOCUMENT_LIST_ROUTE
     )

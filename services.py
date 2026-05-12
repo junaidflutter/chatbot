@@ -4,6 +4,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from constants import (
     ASSISTANT_ROLE,
+    ANONYMOUS_USER_ID,
     CAR_SELLING_SYSTEM_PROMPT,
     CHAT_HISTORY_LIMIT,
     DEFAULT_MODEL,
@@ -15,6 +16,7 @@ from constants import (
     OPENAI_API_KEY_MISSING_ERROR,
     OPENAI_MAX_TOKENS,
     OPENAI_TEMPERATURE,
+    MESSAGE_KEY,
     SYSTEM_ROLE,
     USER_ROLE,
     VOICE_TRANSCRIPTION_PROMPT,
@@ -24,8 +26,7 @@ load_dotenv()
 
 
 class OpenAIService:
-
-    def __init__(self):
+    def __init__(self, chat_history_service=None):
 
         api_key = os.getenv(OPENAI_API_KEY_ENV)
 
@@ -34,17 +35,38 @@ class OpenAIService:
             raise ValueError(OPENAI_API_KEY_MISSING_ERROR)
 
         self.client = AsyncOpenAI(api_key=api_key)
+        self.chat_history_service = chat_history_service
 
-        self.chat_history = {}
+    async def _load_history(self, user_id: str, session_id: str):
+        if self.chat_history_service is None:
+            return []
+
+        entries = await self.chat_history_service.get_recent_messages(
+            user_id=user_id or ANONYMOUS_USER_ID,
+            session_id=session_id,
+            limit=CHAT_HISTORY_LIMIT * 2,
+        )
+        return [
+            {MESSAGE_ROLE_KEY: entry[MESSAGE_ROLE_KEY], MESSAGE_CONTENT_KEY: entry[MESSAGE_KEY]}
+            for entry in entries
+        ]
+
+    async def _append_history(self, user_id: str, session_id: str, question: str, answer: str):
+        if self.chat_history_service is None:
+            return
+
+        user_key = user_id or ANONYMOUS_USER_ID
+        await self.chat_history_service.add_message(user_key, session_id, USER_ROLE, question)
+        await self.chat_history_service.add_message(user_key, session_id, ASSISTANT_ROLE, answer)
 
     async def get_chat_response(
         self,
         question: str,
         session_id: str = DEFAULT_SESSION_ID,
+        user_id: str = ANONYMOUS_USER_ID,
         model: str = DEFAULT_MODEL,
     ):
-
-        history = self.chat_history.get(session_id, [])
+        history = await self._load_history(user_id, session_id)
 
         messages = [
             {MESSAGE_ROLE_KEY: SYSTEM_ROLE, MESSAGE_CONTENT_KEY: CAR_SELLING_SYSTEM_PROMPT},
@@ -61,13 +83,7 @@ class OpenAIService:
         )
 
         assistant_reply = response.choices[0].message.content
-        updated_history = [
-            *history,
-            {MESSAGE_ROLE_KEY: USER_ROLE, MESSAGE_CONTENT_KEY: question},
-            {MESSAGE_ROLE_KEY: ASSISTANT_ROLE, MESSAGE_CONTENT_KEY: assistant_reply},
-        ]
-
-        self.chat_history[session_id] = updated_history[-CHAT_HISTORY_LIMIT:]
+        await self._append_history(user_id, session_id, question, assistant_reply)
 
         return assistant_reply
 
@@ -97,9 +113,10 @@ class OpenAIService:
         self,
         question: str,
         session_id: str = DEFAULT_SESSION_ID,
+        user_id: str = ANONYMOUS_USER_ID,
         model: str = DEFAULT_MODEL,
     ):
-        history = self.chat_history.get(session_id, [])
+        history = await self._load_history(user_id, session_id)
 
         messages = [
             {MESSAGE_ROLE_KEY: SYSTEM_ROLE, MESSAGE_CONTENT_KEY: CAR_SELLING_SYSTEM_PROMPT},
@@ -126,10 +143,4 @@ class OpenAIService:
             yield chunk
 
         assistant_reply = "".join(chunks)
-        updated_history = [
-            *history,
-            {MESSAGE_ROLE_KEY: USER_ROLE, MESSAGE_CONTENT_KEY: question},
-            {MESSAGE_ROLE_KEY: ASSISTANT_ROLE, MESSAGE_CONTENT_KEY: assistant_reply},
-        ]
-
-        self.chat_history[session_id] = updated_history[-CHAT_HISTORY_LIMIT:]
+        await self._append_history(user_id, session_id, question, assistant_reply)

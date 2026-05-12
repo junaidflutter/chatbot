@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from constants import CHAT_ROUTE, DOCUMENT_VIEW_ROUTE, CHAT_VIEW_ROUTE, VOICE_VIEW_ROUTE
+from constants import AUTH_VIEW_ROUTE, CHAT_ROUTE, DOCUMENT_VIEW_ROUTE, CHAT_VIEW_ROUTE, VOICE_VIEW_ROUTE
 
 router = APIRouter()
 
@@ -17,12 +17,15 @@ async def chat_page():
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fb; color: #172033; }
     main { max-width: 900px; margin: 32px auto; padding: 0 20px; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
     a { color: #0f62fe; text-decoration: none; }
+    .nav { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
     .panel { background: white; border: 1px solid #d8dee9; border-radius: 8px; padding: 18px; }
     textarea, input { width: 100%; box-sizing: border-box; border: 1px solid #c8d0dd; border-radius: 6px; padding: 10px; font: inherit; }
     textarea { min-height: 110px; resize: vertical; }
     button { margin-top: 12px; border: 0; border-radius: 6px; padding: 10px 14px; background: #1f6feb; color: white; cursor: pointer; }
+    button.ghost { background: #e9eef7; color: #172033; border: 1px solid #c8d0dd; }
+    button.secondary { background: #5b6677; }
     pre { white-space: pre-wrap; background: #101828; color: #e6edf3; border-radius: 8px; padding: 14px; min-height: 120px; }
     label { display: block; margin: 12px 0 6px; font-weight: 600; }
     .row { display: flex; gap: 10px; align-items: center; }
@@ -34,9 +37,10 @@ async def chat_page():
   <main>
     <header>
       <h1>Chat</h1>
-      <nav>
-        <a href="VOICE_VIEW_PATH">Voice chat</a>
-        <a href="DOCUMENT_VIEW_PATH">Upload documents</a>
+      <nav class="nav">
+        <a href="VOICE_VIEW_PATH">Voice</a>
+        <a href="DOCUMENT_VIEW_PATH">Documents</a>
+        <button class="secondary" type="button" onclick="logout()">Logout</button>
       </nav>
     </header>
     <section class="panel">
@@ -47,22 +51,40 @@ async def chat_page():
       <div class="row">
         <button onclick="sendQuestion()">Ask with API</button>
         <button onclick="sendSocketQuestion()">Ask with Socket Stream</button>
+        <button class="ghost" onclick="loadHistory()">Load history</button>
       </div>
       <div class="status" id="status"></div>
       <h2>Answer</h2>
       <pre id="answer"></pre>
+      <h2>History</h2>
+      <pre id="history"></pre>
     </section>
   </main>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
     const socket = io();
     const answer = document.getElementById("answer");
+    const history = document.getElementById("history");
     const status = document.getElementById("status");
+
+    function getAccessToken() {
+      return localStorage.getItem("access_token") || "";
+    }
+
+    if (!getAccessToken()) {
+      window.location.href = "/login";
+    }
+
+    function logout() {
+      localStorage.removeItem("access_token");
+      window.location.href = "/login";
+    }
 
     socket.on("connect", () => {
       status.textContent = "Socket connected";
       socket.emit("join_session", {
-        session_id: document.getElementById("session").value
+        session_id: document.getElementById("session").value,
+        access_token: getAccessToken()
       });
     });
 
@@ -91,7 +113,10 @@ async def chat_page():
       status.textContent = "";
       const response = await fetch("CHAT_API_PATH", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + getAccessToken()
+        },
         body: JSON.stringify({
           question: document.getElementById("question").value,
           session_id: document.getElementById("session").value
@@ -107,6 +132,17 @@ async def chat_page():
       answer.textContent = JSON.stringify(data, null, 2);
     }
 
+    async function loadHistory() {
+      const sessionId = document.getElementById("session").value;
+      const response = await fetch("/chat/history?session_id=" + encodeURIComponent(sessionId), {
+        headers: {
+          Authorization: "Bearer " + getAccessToken()
+        }
+      });
+      const data = await response.json();
+      history.textContent = JSON.stringify(data, null, 2);
+    }
+
     function sendSocketQuestion() {
       const question = document.getElementById("question").value.trim();
       if (!question) {
@@ -118,21 +154,21 @@ async def chat_page():
       status.textContent = "Sending...";
       socket.emit("send_message", {
         question,
-        session_id: document.getElementById("session").value
+        session_id: document.getElementById("session").value,
+        access_token: getAccessToken()
       });
     }
   </script>
 </body>
 </html>
 """
-    return (
-        html.replace("VOICE_VIEW_PATH", VOICE_VIEW_ROUTE)
-        .replace(
-            "DOCUMENT_VIEW_PATH",
-            DOCUMENT_VIEW_ROUTE,
-        )
-        .replace(
-            "CHAT_API_PATH",
-            CHAT_ROUTE,
-        )
+    return html.replace(
+        "VOICE_VIEW_PATH",
+        VOICE_VIEW_ROUTE,
+    ).replace(
+        "DOCUMENT_VIEW_PATH",
+        DOCUMENT_VIEW_ROUTE,
+    ).replace(
+        "CHAT_API_PATH",
+        CHAT_ROUTE,
     )
