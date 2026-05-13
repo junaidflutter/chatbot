@@ -1,6 +1,6 @@
 APP_TITLE = "AI Chatbot API"
 
-APP_HOST = "127.0.0.1"
+APP_HOST = "0.0.0.0"
 
 APP_PORT = 8000
 
@@ -169,9 +169,9 @@ SOCKET_CONNECT_EVENT = "connect"
 
 SOCKET_DISCONNECT_EVENT = "disconnect"
 
-SOCKET_JOIN_EVENT = "join_session"
+SOCKET_JOIN_EVENT = "user:join"
 
-SOCKET_SEND_MESSAGE_EVENT = "send_message"
+SOCKET_SEND_MESSAGE_EVENT = "user:message"
 
 SOCKET_VOICE_AUDIO_EVENT = "voice_audio"
 
@@ -189,9 +189,9 @@ SOCKET_ASSISTANT_DONE_EVENT = "assistant_done"
 
 SOCKET_ASSISTANT_ERROR_EVENT = "assistant_error"
 
-SOCKET_SESSION_ID_KEY = "session_id"
+SOCKET_SESSION_ID_KEY = "conversationId"
 
-SOCKET_QUESTION_KEY = "question"
+SOCKET_QUESTION_KEY = "text"
 
 SOCKET_AUDIO_BASE64_KEY = "audio_base64"
 
