@@ -60,10 +60,14 @@ class UserResponse(BaseModel):
     name: Optional[str] = ""
 
 
+class UserModel(UserResponse):
+    pass
+
+
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str
-    user: UserResponse
+    user: UserModel
 
 
 class Citation(BaseModel):

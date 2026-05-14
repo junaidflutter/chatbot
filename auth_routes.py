@@ -7,6 +7,14 @@ from models import AuthResponse, LoginRequest, RegisterRequest, UserResponse
 router = APIRouter()
 
 
+def _user_payload(user: dict) -> dict:
+    return {
+        "id": user.get("user_id") or str(user.get("_id", "")),
+        "email": user["email"],
+        "name": user.get("name", ""),
+    }
+
+
 @router.post("/auth/register", response_model=AuthResponse)
 async def register(request: RegisterRequest):
     try:
@@ -15,11 +23,7 @@ async def register(request: RegisterRequest):
         return {
             AUTH_ACCESS_TOKEN_KEY: token,
             "token_type": AUTH_TOKEN_TYPE,
-            AUTH_USER_KEY: {
-                "id": user["user_id"],
-                "email": user["email"],
-                "name": user.get("name", ""),
-            },
+            AUTH_USER_KEY: _user_payload(user),
         }
     except ValueError as ve:
         raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=str(ve))
@@ -35,11 +39,7 @@ async def login(request: LoginRequest):
         return {
             AUTH_ACCESS_TOKEN_KEY: token,
             "token_type": AUTH_TOKEN_TYPE,
-            AUTH_USER_KEY: {
-                "id": user["user_id"],
-                "email": user["email"],
-                "name": user.get("name", ""),
-            },
+            AUTH_USER_KEY: _user_payload(user),
         }
     except ValueError as ve:
         raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=str(ve))
