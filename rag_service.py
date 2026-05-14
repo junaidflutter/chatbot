@@ -1,4 +1,5 @@
 import json
+from time import perf_counter
 from constants import (
     ANSWER_RESPONSE_KEY,
     ANONYMOUS_USER_ID,
@@ -27,6 +28,10 @@ from services import OpenAIService
 from vector_store import VectorStore
 
 
+def _elapsed_ms(start: float) -> int:
+    return int((perf_counter() - start) * 1000)
+
+
 class RagService:
     def __init__(
         self,
@@ -41,11 +46,22 @@ class RagService:
         self.chat_history_service = chat_history_service
 
     async def answer_question(self, question: str, session_id: str, user_id: str = ANONYMOUS_USER_ID) -> dict:
+        started_at = perf_counter()
+        print(
+            f"[rag] answer start session_id={session_id} user_id={user_id} question_len={len(question)}"
+        )
         document_result = await self._get_document_answer(question, user_id)
         if document_result:
+            print(
+                f"[rag] answer document done session_id={session_id} ms={_elapsed_ms(started_at)} answer_len={len(document_result.get(ANSWER_RESPONSE_KEY, ''))}"
+            )
             return document_result
 
-        return await self._fallback_answer(question, session_id, user_id)
+        result = await self._fallback_answer(question, session_id, user_id)
+        print(
+            f"[rag] answer fallback done session_id={session_id} ms={_elapsed_ms(started_at)} answer_len={len(result.get(ANSWER_RESPONSE_KEY, ''))}"
+        )
+        return result
 
     async def _answer_from_context(self, question: str, context: str) -> dict:
         response = await self.openai_service.client.chat.completions.create(
@@ -68,10 +84,15 @@ class RagService:
             return {"can_answer_from_context": False, "answer": ""}
 
     async def _fallback_answer(self, question: str, session_id: str, user_id: str) -> dict:
+        started_at = perf_counter()
+        print(f"[rag] fallback start session_id={session_id} user_id={user_id}")
         answer = await self.openai_service.get_chat_response(
             question=question,
             session_id=session_id,
             user_id=user_id,
+        )
+        print(
+            f"[rag] fallback done session_id={session_id} ms={_elapsed_ms(started_at)}"
         )
         return {
             ANSWER_RESPONSE_KEY: answer,
@@ -114,20 +135,32 @@ class RagService:
 
     async def _get_document_answer(self, question: str, user_id: str) -> dict | None:
         if not self._should_search_documents(question):
+            print("[rag] document skip reason=no_keyword")
             return None
 
+        started_at = perf_counter()
         try:
             query_vector = (await self.embedding_service.embed_texts([question]))[0]
             matches = self.vector_store.search(query_vector, limit=RAG_TOP_K, user_id=user_id)
             usable_matches = [match for match in matches if match.score >= RAG_MIN_SCORE]
-        except Exception:
+            print(
+                f"[rag] document search done user_id={user_id} matches={len(matches)} usable={len(usable_matches)} ms={_elapsed_ms(started_at)}"
+            )
+        except Exception as exc:
+            print(
+                f"[rag] document search fail user_id={user_id} ms={_elapsed_ms(started_at)} error={exc}"
+            )
             return None
 
         if not usable_matches:
             return None
 
+        answer_started_at = perf_counter()
         context = self._build_context(usable_matches)
         document_result = await self._answer_from_context(question, context)
+        print(
+            f"[rag] document answer check done user_id={user_id} ms={_elapsed_ms(answer_started_at)} total_ms={_elapsed_ms(started_at)} can_answer={bool(document_result.get('can_answer_from_context'))}"
+        )
         if not document_result.get("can_answer_from_context"):
             return None
 

@@ -1,5 +1,7 @@
 import os
+import asyncio
 from io import BytesIO
+from time import perf_counter
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from constants import (
@@ -24,6 +26,30 @@ from constants import (
 
 load_dotenv()
 
+OPENAI_TRANSCRIPTION_MODEL_ENV = "OPENAI_TRANSCRIPTION_MODEL"
+OPENAI_TTS_MODEL_ENV = "OPENAI_TTS_MODEL"
+OPENAI_TTS_TIMEOUT_ENV = "OPENAI_TTS_TIMEOUT_SECONDS"
+OPENAI_TRANSCRIBE_TIMEOUT_ENV = "OPENAI_TRANSCRIBE_TIMEOUT_SECONDS"
+OPENAI_CHAT_TIMEOUT_ENV = "OPENAI_CHAT_TIMEOUT_SECONDS"
+DEFAULT_TRANSCRIPTION_MODELS = (
+    "gpt-4o-mini-transcribe",
+)
+DEFAULT_TTS_MODEL = "tts-1"
+DEFAULT_TTS_TIMEOUT_SECONDS = 15.0
+DEFAULT_TRANSCRIBE_TIMEOUT_SECONDS = 15.0
+DEFAULT_CHAT_TIMEOUT_SECONDS = 20.0
+
+
+def _elapsed_ms(start: float) -> int:
+    return int((perf_counter() - start) * 1000)
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, "").strip() or default)
+    except ValueError:
+        return default
+
 
 class OpenAIService:
     def __init__(self, chat_history_service=None):
@@ -34,7 +60,7 @@ class OpenAIService:
 
             raise ValueError(OPENAI_API_KEY_MISSING_ERROR)
 
-        self.client = AsyncOpenAI(api_key=api_key)
+        self.client = AsyncOpenAI(api_key=api_key, timeout=25.0)
         self.chat_history_service = chat_history_service
 
     async def _load_history(self, user_id: str, session_id: str):
@@ -75,14 +101,22 @@ class OpenAIService:
             {MESSAGE_ROLE_KEY: USER_ROLE, MESSAGE_CONTENT_KEY: question},
         ]
 
+        started_at = perf_counter()
+        print(
+            f"[openai] chat start model={model} question_len={len(question)} history_messages={len(history)}"
+        )
         response = await self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=OPENAI_TEMPERATURE,
             max_tokens=OPENAI_MAX_TOKENS,
+            timeout=_env_float(OPENAI_CHAT_TIMEOUT_ENV, DEFAULT_CHAT_TIMEOUT_SECONDS),
         )
 
         assistant_reply = response.choices[0].message.content
+        print(
+            f"[openai] chat done model={model} answer_len={len(assistant_reply or '')} ms={_elapsed_ms(started_at)}"
+        )
         await self._append_history(user_id, session_id, question, assistant_reply)
 
         return assistant_reply
@@ -94,20 +128,85 @@ class OpenAIService:
     ) -> str:
         buffer = BytesIO(audio_bytes)
         buffer.name = filename
+        configured_model = os.getenv(OPENAI_TRANSCRIPTION_MODEL_ENV, "").strip()
+        models = (configured_model,) if configured_model else DEFAULT_TRANSCRIPTION_MODELS
+        overall_started_at = perf_counter()
+        print(
+            f"[openai] transcribe start filename={filename} bytes={len(audio_bytes)} models={models}"
+        )
 
-        for model in ("gpt-4o-transcribe", "gpt-4o-mini-transcribe", "whisper-1"):
+        for model in models:
             try:
+                buffer.seek(0)
+                model_started_at = perf_counter()
+                print(f"[openai] transcribe try model={model}")
                 response = await self.client.audio.transcriptions.create(
                     model=model,
                     file=buffer,
                     language="en",
                     prompt=VOICE_TRANSCRIPTION_PROMPT,
+                    timeout=_env_float(
+                        OPENAI_TRANSCRIBE_TIMEOUT_ENV,
+                        DEFAULT_TRANSCRIBE_TIMEOUT_SECONDS,
+                    ),
                 )
-                return (response.text or "").strip()
-            except Exception:
-                buffer.seek(0)
+                text = (response.text or "").strip()
+                print(
+                    f"[openai] transcribe done model={model} text_len={len(text)} ms={_elapsed_ms(model_started_at)} total_ms={_elapsed_ms(overall_started_at)}"
+                )
+                return text
+            except Exception as exc:
+                print(
+                    f"[openai] transcribe fail model={model} ms={_elapsed_ms(model_started_at)} error={exc}"
+                )
 
+        print(
+            f"[openai] transcribe exhausted all models total_ms={_elapsed_ms(overall_started_at)}"
+        )
         return ""
+
+    async def transcribe_audio(self, audio) -> str:
+        audio_bytes = await audio.read()
+        filename = getattr(audio, "filename", None) or "voice.webm"
+        return await self.transcribe_audio_bytes(audio_bytes, filename=filename)
+
+    async def synthesize_speech_bytes(self, text: str, voice: str = "alloy") -> bytes:
+        started_at = perf_counter()
+        model = os.getenv(OPENAI_TTS_MODEL_ENV, "").strip() or DEFAULT_TTS_MODEL
+        print(f"[openai] tts start model={model} voice={voice} text_len={len(text)}")
+        speech = await self.client.audio.speech.create(
+            model=model,
+            voice=voice,
+            input=text,
+            response_format="wav",
+            timeout=_env_float(OPENAI_TTS_TIMEOUT_ENV, DEFAULT_TTS_TIMEOUT_SECONDS),
+        )
+
+        for method_name in ("aread", "read"):
+            method = getattr(speech, method_name, None)
+            if method is None:
+                continue
+            result = method()
+            if asyncio.iscoroutine(result):
+                audio = await result
+                print(
+                    f"[openai] tts success async model={model} bytes={len(audio)} ms={_elapsed_ms(started_at)}"
+                )
+                return audio
+            print(
+                f"[openai] tts success sync model={model} bytes={len(result)} ms={_elapsed_ms(started_at)}"
+            )
+            return result
+
+        content = getattr(speech, "content", None)
+        if isinstance(content, bytes):
+            print(
+                f"[openai] tts success content model={model} bytes={len(content)} ms={_elapsed_ms(started_at)}"
+            )
+            return content
+
+        print(f"[openai] tts failed to extract audio bytes ms={_elapsed_ms(started_at)}")
+        raise ValueError("Could not synthesize speech audio.")
 
     async def stream_chat_response(
         self,
@@ -131,6 +230,7 @@ class OpenAIService:
             temperature=OPENAI_TEMPERATURE,
             max_tokens=OPENAI_MAX_TOKENS,
             stream=True,
+            timeout=_env_float(OPENAI_CHAT_TIMEOUT_ENV, DEFAULT_CHAT_TIMEOUT_SECONDS),
         )
 
         chunks = []

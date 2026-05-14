@@ -174,6 +174,12 @@ SOCKET_JOIN_EVENT = "user:join"
 SOCKET_SEND_MESSAGE_EVENT = "user:message"
 
 SOCKET_VOICE_AUDIO_EVENT = "voice_audio"
+SOCKET_AUDIO_CHUNK_EVENT = "audio_chunk"
+SOCKET_AUDIO_END_EVENT = "audio_end"
+SOCKET_VOICE_AUDIO_CHUNK_EVENT = "voice_audio_chunk"
+SOCKET_VOICE_AUDIO_END_EVENT = "voice_audio_end"
+SOCKET_START_STREAM_EVENT = "start_stream"
+SOCKET_AUDIO_RESPONSE_EVENT = "audio_response"
 
 SOCKET_VOICE_TRANSCRIBING_EVENT = "voice_transcribing"
 
@@ -198,6 +204,16 @@ SOCKET_AUDIO_BASE64_KEY = "audio_base64"
 SOCKET_AUDIO_MIME_TYPE_KEY = "mime_type"
 
 SOCKET_AUDIO_FILENAME_KEY = "audio_filename"
+
+SOCKET_AUDIO_CHUNK_INDEX_KEY = "chunk_index"
+
+SOCKET_AUDIO_CODEC_KEY = "audio_codec"
+
+SOCKET_AUDIO_SAMPLE_RATE_KEY = "sample_rate"
+
+SOCKET_AUDIO_NUM_CHANNELS_KEY = "num_channels"
+
+SOCKET_AUDIO_IS_FINAL_KEY = "is_final"
 
 SOCKET_CHUNK_KEY = "chunk"
 
