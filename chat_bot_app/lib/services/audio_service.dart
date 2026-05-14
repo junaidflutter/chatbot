@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert'; // For base64Encode
 import 'dart:developer';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -17,6 +18,7 @@ class AudioService {
   StreamController<Uint8List>? _recordingChunkController;
   BytesBuilder _recordingPcmBuffer = BytesBuilder(copy: false);
   int _recordingChunkCount = 0;
+  int _lastRecordLogMs = 0;
   static const int _recordingSampleRate = 16000;
   static const int _recordingNumChannels = 1;
 
@@ -77,13 +79,8 @@ class AudioService {
       return;
     }
 
-    await _recorder!.setSubscriptionDuration(const Duration(milliseconds: 20));
     await _recorderProgressSub?.cancel();
-    _recorderProgressSub = _recorder!.onProgress?.listen((event) {
-      final decibels = event.decibels ?? -60.0;
-      log('[AudioService] recorder progress -> db=$decibels');
-      onSoundLevel?.call(decibels);
-    });
+    _recorderProgressSub = null;
 
     await _recordingChunkSub?.cancel();
     _recordingChunkSub = null;
@@ -91,13 +88,14 @@ class AudioService {
     _recordingChunkController = StreamController<Uint8List>();
     _recordingPcmBuffer = BytesBuilder(copy: false);
     _recordingChunkCount = 0;
+    _lastRecordLogMs = 0;
     _recordingChunkSub = _recordingChunkController!.stream.listen((chunk) {
       if (chunk.isEmpty) return;
       _recordingPcmBuffer.add(chunk);
       _recordingChunkCount += 1;
-      log(
-        '[AudioService] recorder chunk -> ${chunk.length} bytes (#$_recordingChunkCount)',
-      );
+      final levelDb = _pcm16RmsDb(chunk);
+      onSoundLevel?.call(levelDb);
+      _logRecordChunk(chunk.length, levelDb);
       onBase64AudioData?.call(base64Encode(chunk));
     });
 
@@ -252,5 +250,30 @@ class AudioService {
     builder.add(header.buffer.asUint8List());
     builder.add(pcmBytes);
     return builder.toBytes();
+  }
+
+  double _pcm16RmsDb(Uint8List bytes) {
+    if (bytes.length < 2) return -90.0;
+
+    final data = ByteData.sublistView(bytes);
+    final sampleCount = bytes.length ~/ 2;
+    var sumSquares = 0.0;
+    for (var i = 0; i < sampleCount; i += 1) {
+      final sample = data.getInt16(i * 2, Endian.little) / 32768.0;
+      sumSquares += sample * sample;
+    }
+
+    final rms = math.sqrt(sumSquares / sampleCount);
+    if (rms <= 0) return -90.0;
+    return 20.0 * math.log(rms) / math.ln10;
+  }
+
+  void _logRecordChunk(int byteCount, double levelDb) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - _lastRecordLogMs < 500) return;
+    _lastRecordLogMs = nowMs;
+    log(
+      '[AudioService] recorder chunk -> $byteCount bytes (#$_recordingChunkCount) levelDb=${levelDb.toStringAsFixed(1)}',
+    );
   }
 }

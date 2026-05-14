@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 class SocketService {
   io.Socket? _socket;
   String? _conversationId;
+  int _lastVoiceChunkLogMs = 0;
 
   late VoidCallback onConnect;
   late ValueChanged<dynamic> onError;
@@ -123,6 +124,7 @@ class SocketService {
       return;
     }
 
+    _lastVoiceChunkLogMs = 0;
     _socket?.emit(ApiConstants.startStream, _socketPayload());
     log('[SocketService] emitted start_stream');
   }
@@ -161,9 +163,13 @@ class SocketService {
       return;
     }
 
-    log(
-      '[SocketService] voice chunk sending -> index=$chunkIndex size=${base64Chunk.length} chars',
-    );
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - _lastVoiceChunkLogMs >= 500) {
+      _lastVoiceChunkLogMs = nowMs;
+      log(
+        '[SocketService] voice chunk sending -> index=$chunkIndex size=${base64Chunk.length} chars',
+      );
+    }
     _socket?.emit(ApiConstants.audioChunk, {
       ..._socketPayload(),
       ApiConstants.audioBase64Key: base64Chunk,
