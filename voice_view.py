@@ -279,6 +279,7 @@ async def voice_page():
     let currentAssistantBubble = null;
     let currentAssistantText = "";
     let pendingTranscript = "";
+    let assistantSpeakingStartedAt = 0;
 
     socket.on("connect", () => {
       socket.emit("join_session", { session_id: getSessionId(), access_token: getAccessToken() });
@@ -553,8 +554,6 @@ async def voice_page():
               }
             }, 1300);
           }
-        } else if (phase === "speaking" && level > 12) {
-          interruptAssistant();
         }
 
         vadFrame = requestAnimationFrame(renderMeter);
@@ -644,6 +643,7 @@ async def voice_page():
       }
 
       window.speechSynthesis.cancel();
+      assistantSpeakingStartedAt = 0;
       phase = "idle";
       modeLabel.textContent = "Ready";
       setStatus("Interrupted", phase);
@@ -709,15 +709,18 @@ async def voice_page():
       }
 
       window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
       const utterance = new SpeechSynthesisUtterance(answer);
       utterance.lang = "en-US";
       utterance.rate = 1.08;
       utterance.pitch = 1;
       utterance.voice = selectedVoice;
       utterance.onstart = () => {
+        assistantSpeakingStartedAt = Date.now();
         modeLabel.textContent = "Speaking";
       };
       utterance.onend = () => {
+        assistantSpeakingStartedAt = 0;
         phase = "idle";
         modeLabel.textContent = "Ready";
         setStatus("Ready for next question", phase);
@@ -726,6 +729,7 @@ async def voice_page():
         }
       };
       utterance.onerror = () => {
+        assistantSpeakingStartedAt = 0;
         phase = "idle";
         modeLabel.textContent = "Ready";
         setStatus("Speech playback failed", phase, true);
