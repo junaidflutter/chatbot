@@ -7,6 +7,13 @@ import 'package:chat_bot_app/services/audio_service.dart';
 import 'package:chat_bot_app/services/socket_services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+class _PendingVoiceChunk {
+  final String base64Audio;
+  final int chars;
+
+  const _PendingVoiceChunk(this.base64Audio) : chars = base64Audio.length;
+}
+
 class VoiceChatCubit extends Cubit<VoiceChatState> {
   late final AudioService _audioService;
   final SocketService _socketService = SocketService();
@@ -22,13 +29,22 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
   int _speechFrameCount = 0;
   int _lastLevelLogMs = 0;
   int _lastChunkLogMs = 0;
+  double _noiseFloorDb = -60.0;
+  final List<_PendingVoiceChunk> _preVoiceChunks = [];
   DateTime? _lastVoiceAt;
   DateTime? _recordingStartedAt;
+  DateTime? _voiceStartedAt;
 
-  static const double _voiceStartLevelDb = -42.0;
-  static const int _speechFramesToStart = 2;
-  static const int _silenceToStopMs = 350;
-  static const int _hardStopMs = 4500;
+  static const double _minVoiceStartLevelDb = -52.0;
+  static const double _minVoiceContinueLevelDb = -64.0;
+  static const double _startAboveNoiseDb = 12.0;
+  static const double _continueAboveNoiseDb = 3.0;
+  static const int _speechFramesToStart = 3;
+  static const int _silenceToStopMs = 1700;
+  static const int _minRecordingBeforeStopMs = 2500;
+  static const int _minVoiceBeforeStopMs = 900;
+  static const int _hardStopMs = 15000;
+  static const int _preVoiceChunkLimit = 8;
 
   VoiceChatCubit() : super(VoiceChatInitial()) {
     _audioService = AudioService(
@@ -82,23 +98,34 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       );
     }
 
-    if (levelDb >= _voiceStartLevelDb) {
+    final startThreshold = _voiceStartThresholdDb;
+    final continueThreshold = _voiceContinueThresholdDb;
+
+    if (!_hasVoice && levelDb < startThreshold) {
+      _speechFrameCount = 0;
+      _updateNoiseFloor(levelDb);
+      return;
+    }
+
+    if (!_hasVoice) {
       _speechFrameCount += 1;
       if (_speechFrameCount < _speechFramesToStart) return;
-      if (!_hasVoice) {
-        // ignore: avoid_print
-        print('[VoiceChatCubit] human voice started');
-      }
       _hasVoice = true;
+      _lastVoiceAt = now;
+      _voiceStartedAt = now;
+      // ignore: avoid_print
+      print(
+        '[VoiceChatCubit] human voice started threshold=${startThreshold.toStringAsFixed(1)} noise=${_noiseFloorDb.toStringAsFixed(1)}',
+      );
+      return;
+    }
+
+    if (levelDb >= continueThreshold) {
       _lastVoiceAt = now;
       return;
     }
 
     _speechFrameCount = 0;
-    if (!_hasVoice) {
-      return;
-    }
-
     final lastVoiceAt = _lastVoiceAt;
     if (lastVoiceAt == null) {
       final startedAt = _recordingStartedAt;
@@ -113,10 +140,26 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
     }
 
     final silenceMs = now.difference(lastVoiceAt).inMilliseconds;
+    final recordingMs = _recordingStartedAt == null
+        ? 0
+        : now.difference(_recordingStartedAt!).inMilliseconds;
+    if (recordingMs < _minRecordingBeforeStopMs) {
+      return;
+    }
+
+    final voiceMs = _voiceStartedAt == null
+        ? 0
+        : now.difference(_voiceStartedAt!).inMilliseconds;
+    if (voiceMs < _minVoiceBeforeStopMs) {
+      return;
+    }
+
     if (silenceMs >= _silenceToStopMs) {
       _lastVoiceAt = null;
       // ignore: avoid_print
-      print('[VoiceChatCubit] silence detected -> stopRecording()');
+      print(
+        '[VoiceChatCubit] silence detected -> stopRecording() silenceMs=$silenceMs voiceMs=$voiceMs recordingMs=$recordingMs levelDb=${levelDb.toStringAsFixed(1)}',
+      );
       stopRecording();
     }
   }
@@ -125,14 +168,28 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
     if (!_isListening || _isBotSpeaking || _isStopping) return;
     if (base64Audio.isEmpty) return;
 
+    if (!_hasVoice) {
+      _rememberPreVoiceChunk(base64Audio);
+      return;
+    }
+
+    if (_voiceChunkIndex == 0 && _preVoiceChunks.isNotEmpty) {
+      for (final chunk in _preVoiceChunks) {
+        _sendVoiceChunk(chunk.base64Audio, chunk.chars);
+      }
+      _preVoiceChunks.clear();
+    }
+
+    _sendVoiceChunk(base64Audio, base64Audio.length);
+  }
+
+  void _sendVoiceChunk(String base64Audio, int chars) {
     final chunkIndex = _voiceChunkIndex++;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (nowMs - _lastChunkLogMs >= 500) {
       _lastChunkLogMs = nowMs;
       // ignore: avoid_print
-      print(
-        '[VoiceChatCubit] voice chunk -> index=$chunkIndex chars=${base64Audio.length}',
-      );
+      print('[VoiceChatCubit] voice chunk -> index=$chunkIndex chars=$chars');
     }
     _socketService.sendAudioChunk(
       base64Audio,
@@ -210,7 +267,10 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       _voiceChunkIndex = 0;
       _lastLevelLogMs = 0;
       _lastChunkLogMs = 0;
+      _noiseFloorDb = -60.0;
+      _preVoiceChunks.clear();
       _lastVoiceAt = null;
+      _voiceStartedAt = null;
       _recordingStartedAt = DateTime.now();
 
       await _audioService.startRecording();
@@ -252,7 +312,9 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       _isListening = false;
       _hasVoice = false;
       _speechFrameCount = 0;
+      _preVoiceChunks.clear();
       _lastVoiceAt = null;
+      _voiceStartedAt = null;
       _recordingStartedAt = null;
       emit(StopMicState());
     } catch (e) {
@@ -269,5 +331,31 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
     await _audioService.dispose();
     _socketService.disconnect();
     return super.close();
+  }
+
+  double get _voiceStartThresholdDb {
+    final noiseBased = _noiseFloorDb + _startAboveNoiseDb;
+    return noiseBased > _minVoiceStartLevelDb
+        ? noiseBased
+        : _minVoiceStartLevelDb;
+  }
+
+  double get _voiceContinueThresholdDb {
+    final noiseBased = _noiseFloorDb + _continueAboveNoiseDb;
+    return noiseBased > _minVoiceContinueLevelDb
+        ? noiseBased
+        : _minVoiceContinueLevelDb;
+  }
+
+  void _updateNoiseFloor(double levelDb) {
+    if (levelDb < -85.0 || levelDb > _noiseFloorDb + 8.0) return;
+    _noiseFloorDb = (_noiseFloorDb * 0.95) + (levelDb * 0.05);
+  }
+
+  void _rememberPreVoiceChunk(String base64Audio) {
+    _preVoiceChunks.add(_PendingVoiceChunk(base64Audio));
+    if (_preVoiceChunks.length > _preVoiceChunkLimit) {
+      _preVoiceChunks.removeAt(0);
+    }
   }
 }
