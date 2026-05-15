@@ -93,9 +93,9 @@ class AudioService {
       if (chunk.isEmpty) return;
       _recordingPcmBuffer.add(chunk);
       _recordingChunkCount += 1;
-      final levelDb = _pcm16RmsDb(chunk);
-      onSoundLevel?.call(levelDb);
-      _logRecordChunk(chunk.length, levelDb);
+      final level = _pcm16RmsLevel(chunk);
+      onSoundLevel?.call(level);
+      _logRecordChunk(chunk.length, level);
       onBase64AudioData?.call(base64Encode(chunk));
     });
 
@@ -252,8 +252,8 @@ class AudioService {
     return builder.toBytes();
   }
 
-  double _pcm16RmsDb(Uint8List bytes) {
-    if (bytes.length < 2) return -90.0;
+  double _pcm16RmsLevel(Uint8List bytes) {
+    if (bytes.length < 2) return 0.0;
 
     final data = ByteData.sublistView(bytes);
     final sampleCount = bytes.length ~/ 2;
@@ -264,16 +264,16 @@ class AudioService {
     }
 
     final rms = math.sqrt(sumSquares / sampleCount);
-    if (rms <= 0) return -90.0;
-    return 20.0 * math.log(rms) / math.ln10;
+    if (rms <= 0) return 0.0;
+    return math.min(100.0, rms * 420.0);
   }
 
-  void _logRecordChunk(int byteCount, double levelDb) {
+  void _logRecordChunk(int byteCount, double level) {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (nowMs - _lastRecordLogMs < 500) return;
     _lastRecordLogMs = nowMs;
     log(
-      '[AudioService] recorder chunk -> $byteCount bytes (#$_recordingChunkCount) levelDb=${levelDb.toStringAsFixed(1)}',
+      '[AudioService] recorder chunk -> $byteCount bytes (#$_recordingChunkCount) level=${level.toStringAsFixed(1)}',
     );
   }
 }

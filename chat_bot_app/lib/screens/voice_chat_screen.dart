@@ -115,24 +115,24 @@ class _VoiceActionButton extends StatelessWidget {
       width: 88,
       height: 88,
       child: ElevatedButton(
-        onPressed: isSpeaking
-            ? null
-            : () {
-                if (isListening) {
-                  cubit.stopRecording();
-                } else {
-                  cubit.startVoiceChat();
-                }
-              },
+        onPressed: (isSpeaking || isListening) ? null : cubit.startVoiceChat,
         style: ElevatedButton.styleFrom(
           shape: const CircleBorder(),
           padding: EdgeInsets.zero,
-          backgroundColor: isListening
+          backgroundColor: isSpeaking
+              ? Colors.grey
+              : isListening
               ? Colors.redAccent
               : const Color(0xFF2563EB),
           foregroundColor: Colors.white,
         ),
-        child: Icon(isListening ? Icons.stop_rounded : Icons.mic_rounded),
+        child: Icon(
+          isSpeaking
+              ? Icons.volume_up_rounded
+              : isListening
+              ? Icons.graphic_eq_rounded
+              : Icons.mic_rounded,
+        ),
       ),
     );
   }

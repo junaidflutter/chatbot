@@ -7,13 +7,6 @@ import 'package:chat_bot_app/services/audio_service.dart';
 import 'package:chat_bot_app/services/socket_services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class _PendingVoiceChunk {
-  final String base64Audio;
-  final int chars;
-
-  const _PendingVoiceChunk(this.base64Audio) : chars = base64Audio.length;
-}
-
 class VoiceChatCubit extends Cubit<VoiceChatState> {
   late final AudioService _audioService;
   final SocketService _socketService = SocketService();
@@ -25,32 +18,21 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
   bool _voiceSessionStarted = false;
   bool _isStopping = false;
   bool _hasVoice = false;
-  int _voiceChunkIndex = 0;
-  int _speechFrameCount = 0;
   int _lastLevelLogMs = 0;
-  int _lastChunkLogMs = 0;
-  double _noiseFloorDb = -60.0;
-  final List<_PendingVoiceChunk> _preVoiceChunks = [];
   DateTime? _lastVoiceAt;
   DateTime? _recordingStartedAt;
-  DateTime? _voiceStartedAt;
+  Timer? _silenceWatchdog;
 
-  static const double _minVoiceStartLevelDb = -52.0;
-  static const double _minVoiceContinueLevelDb = -64.0;
-  static const double _startAboveNoiseDb = 12.0;
-  static const double _continueAboveNoiseDb = 3.0;
-  static const int _speechFramesToStart = 3;
-  static const int _silenceToStopMs = 1700;
-  static const int _minRecordingBeforeStopMs = 2500;
-  static const int _minVoiceBeforeStopMs = 900;
-  static const int _hardStopMs = 15000;
-  static const int _preVoiceChunkLimit = 8;
+  static const double _voiceLevelThreshold = 2.0;
+  static const int _silenceHoldMs = 900;
+  static const int _minRecordingBeforeStopMs = 500;
+  static const int _captureTimeoutMs = 12000;
+  static const int _watchdogIntervalMs = 60;
 
   VoiceChatCubit() : super(VoiceChatInitial()) {
     _audioService = AudioService(
       onPlaybackFinished: _onPlaybackDone,
       onSoundLevel: _handleSoundLevel,
-      onBase64AudioData: _handleBase64AudioData,
     );
     _initConnection();
   }
@@ -85,7 +67,7 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
     _socketService.connect(serverUrl: ApiConstants.socketUrl);
   }
 
-  void _handleSoundLevel(double levelDb) {
+  void _handleSoundLevel(double level) {
     if (!_isListening || _isBotSpeaking || _isStopping) return;
 
     final now = DateTime.now();
@@ -94,110 +76,42 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       _lastLevelLogMs = nowMs;
       // ignore: avoid_print
       print(
-        '[VoiceChatCubit] sound level -> levelDb=${levelDb.toStringAsFixed(1)} listening=$_isListening speaking=$_isBotSpeaking',
+        '[VoiceChatCubit] sound level -> level=${level.toStringAsFixed(1)} listening=$_isListening speaking=$_isBotSpeaking',
       );
     }
 
-    final startThreshold = _voiceStartThresholdDb;
-    final continueThreshold = _voiceContinueThresholdDb;
-
-    if (!_hasVoice && levelDb < startThreshold) {
-      _speechFrameCount = 0;
-      _updateNoiseFloor(levelDb);
-      return;
-    }
-
-    if (!_hasVoice) {
-      _speechFrameCount += 1;
-      if (_speechFrameCount < _speechFramesToStart) return;
+    if (level >= _voiceLevelThreshold) {
       _hasVoice = true;
       _lastVoiceAt = now;
-      _voiceStartedAt = now;
-      // ignore: avoid_print
-      print(
-        '[VoiceChatCubit] human voice started threshold=${startThreshold.toStringAsFixed(1)} noise=${_noiseFloorDb.toStringAsFixed(1)}',
-      );
       return;
     }
 
-    if (levelDb >= continueThreshold) {
-      _lastVoiceAt = now;
-      return;
-    }
+    if (!_hasVoice) return;
 
-    _speechFrameCount = 0;
+    final recordingStartedAt = _recordingStartedAt;
     final lastVoiceAt = _lastVoiceAt;
-    if (lastVoiceAt == null) {
-      final startedAt = _recordingStartedAt;
-      if (startedAt != null &&
-          now.difference(startedAt).inMilliseconds >= _hardStopMs &&
-          _voiceChunkIndex > 0) {
-        // ignore: avoid_print
-        print('[VoiceChatCubit] hard timeout -> stopRecording()');
-        stopRecording();
-      }
-      return;
-    }
+    if (recordingStartedAt == null || lastVoiceAt == null) return;
 
+    final recordingMs = now.difference(recordingStartedAt).inMilliseconds;
     final silenceMs = now.difference(lastVoiceAt).inMilliseconds;
-    final recordingMs = _recordingStartedAt == null
-        ? 0
-        : now.difference(_recordingStartedAt!).inMilliseconds;
-    if (recordingMs < _minRecordingBeforeStopMs) {
-      return;
-    }
+    if (recordingMs < _minRecordingBeforeStopMs) return;
 
-    final voiceMs = _voiceStartedAt == null
-        ? 0
-        : now.difference(_voiceStartedAt!).inMilliseconds;
-    if (voiceMs < _minVoiceBeforeStopMs) {
-      return;
-    }
-
-    if (silenceMs >= _silenceToStopMs) {
-      _lastVoiceAt = null;
+    if (silenceMs >= _silenceHoldMs) {
       // ignore: avoid_print
       print(
-        '[VoiceChatCubit] silence detected -> stopRecording() silenceMs=$silenceMs voiceMs=$voiceMs recordingMs=$recordingMs levelDb=${levelDb.toStringAsFixed(1)}',
+        '[VoiceChatCubit] silence detected -> stopRecording() silenceMs=$silenceMs recordingMs=$recordingMs level=${level.toStringAsFixed(1)}',
+      );
+      stopRecording();
+      return;
+    }
+
+    if (recordingMs >= _captureTimeoutMs) {
+      // ignore: avoid_print
+      print(
+        '[VoiceChatCubit] capture timeout -> stopRecording() recordingMs=$recordingMs',
       );
       stopRecording();
     }
-  }
-
-  void _handleBase64AudioData(String base64Audio) {
-    if (!_isListening || _isBotSpeaking || _isStopping) return;
-    if (base64Audio.isEmpty) return;
-
-    if (!_hasVoice) {
-      _rememberPreVoiceChunk(base64Audio);
-      return;
-    }
-
-    if (_voiceChunkIndex == 0 && _preVoiceChunks.isNotEmpty) {
-      for (final chunk in _preVoiceChunks) {
-        _sendVoiceChunk(chunk.base64Audio, chunk.chars);
-      }
-      _preVoiceChunks.clear();
-    }
-
-    _sendVoiceChunk(base64Audio, base64Audio.length);
-  }
-
-  void _sendVoiceChunk(String base64Audio, int chars) {
-    final chunkIndex = _voiceChunkIndex++;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (nowMs - _lastChunkLogMs >= 500) {
-      _lastChunkLogMs = nowMs;
-      // ignore: avoid_print
-      print('[VoiceChatCubit] voice chunk -> index=$chunkIndex chars=$chars');
-    }
-    _socketService.sendAudioChunk(
-      base64Audio,
-      chunkIndex: chunkIndex,
-      sampleRate: 16000,
-      numChannels: 1,
-      codec: 'pcm16',
-    );
   }
 
   Future<void> _handleBotAudio(Uint8List data) async {
@@ -230,15 +144,9 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
     if (_chatStarted) {
       if (_awaitingInitialGreeting) {
         _awaitingInitialGreeting = false;
-        Future<void>.delayed(const Duration(milliseconds: 120), () {
-          if (_chatStarted && !_isBotSpeaking) {
-            startRecording();
-          }
-        });
-        return;
       }
       Future<void>.delayed(const Duration(milliseconds: 120), () {
-        if (_chatStarted && !_isBotSpeaking && !_awaitingInitialGreeting) {
+        if (_chatStarted && !_isBotSpeaking) {
           startRecording();
         }
       });
@@ -263,17 +171,12 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       print('[VoiceChatCubit] startRecording()');
       _isListening = true;
       _hasVoice = false;
-      _speechFrameCount = 0;
-      _voiceChunkIndex = 0;
       _lastLevelLogMs = 0;
-      _lastChunkLogMs = 0;
-      _noiseFloorDb = -60.0;
-      _preVoiceChunks.clear();
       _lastVoiceAt = null;
-      _voiceStartedAt = null;
       _recordingStartedAt = DateTime.now();
 
       await _audioService.startRecording();
+      _startSilenceWatchdog();
 
       // ignore: avoid_print
       print('[VoiceChatCubit] recording started');
@@ -282,6 +185,7 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
       // ignore: avoid_print
       print('[VoiceChatCubit] recording error -> $e');
       _isListening = false;
+      _cancelSilenceWatchdog();
       emit(VoiceChatError('Recording error: ${e.toString()}'));
     }
   }
@@ -291,18 +195,20 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
 
     try {
       _isStopping = true;
+      _cancelSilenceWatchdog();
       // ignore: avoid_print
       print('[VoiceChatCubit] stopRecording()');
-      await _audioService.stopRecording(buildBase64: false);
 
-      if (_voiceChunkIndex > 0) {
-        _socketService.sendAudioEnd(
-          chunkCount: _voiceChunkIndex,
-          sampleRate: 16000,
-          numChannels: 1,
-          codec: 'pcm16',
+      final base64Audio = await _audioService.stopRecording();
+      if (base64Audio != null && base64Audio.isNotEmpty) {
+        // ignore: avoid_print
+        print(
+          '[VoiceChatCubit] sending voice audio -> ${base64Audio.length} chars',
+        );
+        _socketService.sendVoiceAudio(
+          base64Audio: base64Audio,
+          mimeType: 'audio/wav',
           filename: 'voice.wav',
-          isFinal: true,
         );
       } else {
         // ignore: avoid_print
@@ -311,10 +217,7 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
 
       _isListening = false;
       _hasVoice = false;
-      _speechFrameCount = 0;
-      _preVoiceChunks.clear();
       _lastVoiceAt = null;
-      _voiceStartedAt = null;
       _recordingStartedAt = null;
       emit(StopMicState());
     } catch (e) {
@@ -328,34 +231,53 @@ class VoiceChatCubit extends Cubit<VoiceChatState> {
 
   @override
   Future<void> close() async {
+    _cancelSilenceWatchdog();
     await _audioService.dispose();
     _socketService.disconnect();
     return super.close();
   }
 
-  double get _voiceStartThresholdDb {
-    final noiseBased = _noiseFloorDb + _startAboveNoiseDb;
-    return noiseBased > _minVoiceStartLevelDb
-        ? noiseBased
-        : _minVoiceStartLevelDb;
+  void _startSilenceWatchdog() {
+    _cancelSilenceWatchdog();
+    _silenceWatchdog = Timer.periodic(
+      const Duration(milliseconds: _watchdogIntervalMs),
+      (_) => _checkSilenceWatchdog(),
+    );
   }
 
-  double get _voiceContinueThresholdDb {
-    final noiseBased = _noiseFloorDb + _continueAboveNoiseDb;
-    return noiseBased > _minVoiceContinueLevelDb
-        ? noiseBased
-        : _minVoiceContinueLevelDb;
+  void _cancelSilenceWatchdog() {
+    _silenceWatchdog?.cancel();
+    _silenceWatchdog = null;
   }
 
-  void _updateNoiseFloor(double levelDb) {
-    if (levelDb < -85.0 || levelDb > _noiseFloorDb + 8.0) return;
-    _noiseFloorDb = (_noiseFloorDb * 0.95) + (levelDb * 0.05);
-  }
+  void _checkSilenceWatchdog() {
+    if (!_isListening || _isBotSpeaking || _isStopping) return;
+    if (!_hasVoice) return;
 
-  void _rememberPreVoiceChunk(String base64Audio) {
-    _preVoiceChunks.add(_PendingVoiceChunk(base64Audio));
-    if (_preVoiceChunks.length > _preVoiceChunkLimit) {
-      _preVoiceChunks.removeAt(0);
+    final recordingStartedAt = _recordingStartedAt;
+    final lastVoiceAt = _lastVoiceAt;
+    if (recordingStartedAt == null || lastVoiceAt == null) return;
+
+    final now = DateTime.now();
+    final recordingMs = now.difference(recordingStartedAt).inMilliseconds;
+    final silenceMs = now.difference(lastVoiceAt).inMilliseconds;
+    if (recordingMs < _minRecordingBeforeStopMs) return;
+
+    if (silenceMs >= _silenceHoldMs) {
+      // ignore: avoid_print
+      print(
+        '[VoiceChatCubit] watchdog silence -> stopRecording() silenceMs=$silenceMs recordingMs=$recordingMs',
+      );
+      stopRecording();
+      return;
+    }
+
+    if (recordingMs >= _captureTimeoutMs) {
+      // ignore: avoid_print
+      print(
+        '[VoiceChatCubit] watchdog capture timeout -> stopRecording() recordingMs=$recordingMs',
+      );
+      stopRecording();
     }
   }
 }
