@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.responses import JSONResponse
+from fastapi import Response
 from constants import (
     APP_HOST,
     APP_PORT,
@@ -41,6 +42,11 @@ app = socketio.ASGIApp(sio, other_asgi_app=api_app, socketio_path=SOCKET_IO_PATH
 @api_app.get(ROOT_ROUTE)
 async def root():
     return RedirectResponse(url=AUTH_VIEW_ROUTE)
+
+
+@api_app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)
 
 
 @api_app.exception_handler(Exception)

@@ -1,31 +1,34 @@
-import 'dart:convert';
 import 'dart:developer';
 
 import 'package:chat_bot_app/constants/api_constants.dart';
 import 'package:chat_bot_app/model/app_models.dart';
 import 'package:chat_bot_app/utils/my_pref.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 
 class AuthService {
   static const String _tag = '[AuthService]';
+  final Dio _dio = Dio(
+    BaseOptions(
+      baseUrl: ApiConstants.devUrl,
+      headers: {'Content-Type': 'application/json'},
+    ),
+  );
 
   Future<bool> login(String email, String password) async {
     try {
-      final url = Uri.parse('${ApiConstants.devUrl}/auth/login');
-      log('$_tag login -> $url');
+      log('$_tag login -> ${ApiConstants.logInApi}');
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+      final response = await _dio.post(
+        ApiConstants.logInApi,
+        data: {'email': email, 'password': password},
       );
 
       log('$_tag login response -> ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final token = data['access_token'] as String;
-        final userMap = data['user'] as Map<String, dynamic>;
+        final data = Map<String, dynamic>.from(response.data as Map);
+        final token = data['access_token']?.toString() ?? '';
+        final userMap = Map<String, dynamic>.from(data['user'] as Map);
 
         final user = User(
           id: userMap['id'] ?? '',
@@ -37,7 +40,7 @@ class AuthService {
 
         return true;
       } else {
-        log('$_tag login failed -> ${response.body}');
+        log('$_tag login failed -> ${response.data}');
         return false;
       }
     } catch (e) {
@@ -48,19 +51,17 @@ class AuthService {
 
   Future<bool> register(String email, String password, String name) async {
     try {
-      final url = Uri.parse('${ApiConstants.devUrl}/auth/register');
-      log('$_tag register -> $url');
+      log('$_tag register -> ${ApiConstants.signUp}');
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password, 'name': name}),
+      final response = await _dio.post(
+        ApiConstants.signUp,
+        data: {'email': email, 'password': password, 'name': name},
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final token = data['access_token'] as String;
-        final userMap = data['user'] as Map<String, dynamic>;
+        final data = Map<String, dynamic>.from(response.data as Map);
+        final token = data['access_token']?.toString() ?? '';
+        final userMap = Map<String, dynamic>.from(data['user'] as Map);
 
         final user = User(
           id: userMap['id'] ?? '',
@@ -72,7 +73,7 @@ class AuthService {
 
         return true;
       } else {
-        log('$_tag register failed -> ${response.body}');
+        log('$_tag register failed -> ${response.data}');
         return false;
       }
     } catch (e) {

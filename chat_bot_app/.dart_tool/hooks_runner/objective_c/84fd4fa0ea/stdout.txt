@@ -1,0 +1,56 @@
+Running `(cd /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; ANDROID_HOME=/Users/mjunaidtahir/Library/Android/sdk TMPDIR=/var/folders/s1/kfchwmv945121vnkvtdchb700000gn/T/ PATH=/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/local/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/usr/local/bin:/Users/mjunaidtahir/Library/Application Support/cloud-code/installer/google-cloud-sdk/bin:/usr/local/opt/python/libexec/bin:/Users/mjunaidtahir/.opencode/bin:/Users/mjunaidtahir/.antigravity/antigravity/bin:/Users/mjunaidtahir/.codeium/windsurf/bin:/opt/homebrew/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Users/mjunaidtahir/.fig/bin:/Users/mjunaidtahir/.local/bin:/Users/mjunaidtahir/Development/flutter/bin:/Users/mjunaidtahir/.pub-cache/bin:/Users/mjunaidtahir/google-cloud-sdk/bin HOME=/Users/mjunaidtahir /Users/mjunaidtahir/Development/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/package_config.json /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/objective_c/84fd4fa0ea/hook.dill --config=/Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/objective_c/84fd4fa0ea/input.json )`.
+INFO: 2026-05-14 18:52:29.801535: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+
+INFO: 2026-05-14 18:52:30.023299: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+
+INFO: 2026-05-14 18:52:30.063621: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/include/dart_api_dl.c.o
+
+INFO: 2026-05-14 18:52:30.064368: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.c.o
+
+INFO: 2026-05-14 18:52:30.064803: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-14 18:52:30.065036: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.m.o
+
+INFO: 2026-05-14 18:52:30.065480: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/observer.m.o
+
+INFO: 2026-05-14 18:52:30.066085: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/ns_number.m.o
+
+INFO: 2026-05-14 18:52:30.066475: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 -x objective-c -fobjc-arc -c /Users/mjunaidtahir/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-14 18:52:30.474466: 
+INFO: 2026-05-14 18:52:30.474577: 
+INFO: 2026-05-14 18:52:30.474631: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.c.o
+INFO: 2026-05-14 18:52:30.474729: 
+INFO: 2026-05-14 18:52:30.474747: 
+INFO: 2026-05-14 18:52:30.474760: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/include/dart_api_dl.c.o
+INFO: 2026-05-14 18:52:30.474854: 
+INFO: 2026-05-14 18:52:30.474869: 
+INFO: 2026-05-14 18:52:30.474880: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/observer.m.o
+
+INFO: 2026-05-14 18:52:30.479707: 
+INFO: 2026-05-14 18:52:30.479772: 
+INFO: 2026-05-14 18:52:30.479786: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/protocol.m.o
+
+INFO: 2026-05-14 18:52:30.883737: 
+INFO: 2026-05-14 18:52:30.883788: 
+INFO: 2026-05-14 18:52:30.883802: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.m.o
+
+INFO: 2026-05-14 18:52:30.885159: 
+INFO: 2026-05-14 18:52:30.885235: 
+INFO: 2026-05-14 18:52:30.885258: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/ns_number.m.o
+
+INFO: 2026-05-14 18:52:30.906580: 
+INFO: 2026-05-14 18:52:30.906631: 
+INFO: 2026-05-14 18:52:30.906662: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-14 18:52:30.949609: 
+INFO: 2026-05-14 18:52:30.949654: 
+INFO: 2026-05-14 18:52:30.949666: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-14 18:52:30.950041: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios-simulator -mios-version-min=13 /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/include/dart_api_dl.c.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.c.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/input_stream_adapter.m.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c.m.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/observer.m.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/ns_number.m.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/protocol.m.o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/obj/src/objective_c_bindings_generated.m.o -o /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/objective_c.dylib
+
+INFO: 2026-05-14 18:52:31.167796: 
+INFO: 2026-05-14 18:52:31.167890: ld: warning: -undefined dynamic_lookup is deprecated on iOS-simulator
+
+INFO: 2026-05-14 18:52:31.167911: Generated /Users/mjunaidtahir/Development/Projects/GitHub/chatbot/chat_bot_app/.dart_tool/hooks_runner/shared/objective_c/build/84fd4fa0ea/objective_c.dylib
+

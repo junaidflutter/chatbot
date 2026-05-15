@@ -11,6 +11,7 @@ class ApiConstants {
 
   // Chat
   static const String chat = '/chat';
+  static const String chatStream = '/chat/stream';
   static const String chatHistory = '/chat/history';
 
   // Documents

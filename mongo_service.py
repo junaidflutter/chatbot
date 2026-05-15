@@ -1,5 +1,7 @@
+import json
 import os
 from importlib import import_module
+from pathlib import Path
 from constants import MONGODB_DB_DEFAULT, MONGODB_DB_ENV, MONGODB_URL_DEFAULT, MONGODB_URL_ENV
 
 
@@ -32,13 +34,48 @@ class _MemoryCursor:
             raise StopAsyncIteration
 
 
+class _FileBackedStore:
+    def __init__(self, path: str = ".local_data/memory_db.json"):
+        self.path = Path(path)
+        self._data = None
+
+    def collection_docs(self, name: str):
+        data = self._load()
+        return data.setdefault(name, [])
+
+    def save(self):
+        if self._data is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+
+    def _load(self):
+        if self._data is not None:
+            return self._data
+        if not self.path.exists():
+            self._data = {}
+            return self._data
+        try:
+            loaded = json.loads(self.path.read_text(encoding="utf-8"))
+            self._data = loaded if isinstance(loaded, dict) else {}
+        except Exception:
+            self._data = {}
+        return self._data
+
+
 class _MemoryCollection:
-    def __init__(self):
-        self._docs = []
+    def __init__(self, name: str, store: _FileBackedStore):
+        self.name = name
+        self.store = store
+
+    @property
+    def _docs(self):
+        return self.store.collection_docs(self.name)
 
     async def insert_one(self, doc):
         stored = dict(doc)
         self._docs.append(stored)
+        self.store.save()
         return _MemoryInsertResult(stored.get("_id") or stored.get("user_id") or len(self._docs))
 
     async def insert_many(self, docs):
@@ -105,6 +142,7 @@ class MongoService:
         self._client = None
         self._db = None
         self._memory_collections = {}
+        self._file_store = _FileBackedStore()
 
     def _ensure_client(self):
         if self._client is None:
@@ -126,7 +164,7 @@ class MongoService:
 
     def collection(self, name: str):
         if name not in self._memory_collections:
-            self._memory_collections[name] = _MemoryCollection()
+            self._memory_collections[name] = _MemoryCollection(name, self._file_store)
         if self._db is None:
             return self._memory_collections[name]
 

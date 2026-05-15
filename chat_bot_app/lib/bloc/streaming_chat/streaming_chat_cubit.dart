@@ -1,20 +1,17 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:chat_bot_app/bloc/streaming_chat/streaming_chat_state.dart';
 import 'package:chat_bot_app/constants/api_constants.dart';
 import 'package:chat_bot_app/model/app_models.dart';
-import 'package:chat_bot_app/services/audio_service.dart';
-import 'package:chat_bot_app/services/socket_services.dart';
+import 'package:chat_bot_app/services/chat_api_provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
 class StreamingChatCubit extends Cubit<StreamingChatState> {
-  final SocketService _socketService = SocketService();
-  late final AudioService _audioService;
+  final ChatApiProvider _chatApiProvider = const ChatApiProvider();
 
-  StreamingChatCubit() : super(const StreamingChatState.initial()) {
-    _audioService = AudioService(onBase64AudioData: (_) {});
-  }
+  StreamingChatCubit() : super(const StreamingChatState.initial());
 
   void _debug(String message) {
     if (ApiConstants.enableSocketDebugLogs) {
@@ -29,96 +26,9 @@ class StreamingChatCubit extends Cubit<StreamingChatState> {
     emit(
       state.copyWith(
         sessionId: sessionId,
-        status: StreamingChatStatus.connecting,
+        status: StreamingChatStatus.connected,
+        errorMessage: null,
       ),
-    );
-
-    _socketService.init(
-      onConnect: () {
-        _debug('connected');
-        emit(
-          state.copyWith(
-            status: StreamingChatStatus.connected,
-            errorMessage: null,
-          ),
-        );
-      },
-      onError: (error) {
-        _debug('socket_error -> $error');
-        emit(
-          state.copyWith(
-            status: StreamingChatStatus.failure,
-            errorMessage: error.toString(),
-            isAssistantTyping: false,
-          ),
-        );
-      },
-      onDisconnect: () {
-        _debug('disconnected');
-        emit(state.copyWith(status: StreamingChatStatus.initial));
-      },
-      onMessage: (text) {
-        _debug('received -> ${text.replaceAll('\n', ' ').trim()}');
-
-        final messages = List.of(state.messages);
-
-        if (messages.isNotEmpty && messages.last.isLoading) {
-          // Replace loader with the first chunk
-          messages.removeLast();
-          messages.add(
-            Message(
-              id: const Uuid().v4(),
-              text: text,
-              role: 'assistant',
-              timestamp: DateTime.now(),
-              isFromAdmin: true,
-              fromAi: true,
-            ),
-          );
-        } else if (messages.isNotEmpty && messages.last.role == 'assistant') {
-          // Append chunk to the last assistant message
-          final last = messages.removeLast();
-          messages.add(last.copyWith(text: last.text + text));
-        } else {
-          // Fallback: add as a new message
-          messages.add(
-            Message(
-              id: const Uuid().v4(),
-              text: text,
-              role: 'assistant',
-              timestamp: DateTime.now(),
-              isFromAdmin: true,
-              fromAi: true,
-            ),
-          );
-        }
-
-        emit(
-          state.copyWith(
-            messages: messages,
-            status: StreamingChatStatus.connected,
-            isAssistantTyping: false,
-          ),
-        );
-      },
-      onDone: () {
-        _debug('done');
-        emit(
-          state.copyWith(
-            status: StreamingChatStatus.connected,
-            isAssistantTyping: false,
-          ),
-        );
-      },
-      onAudioChunk: (chunk) {
-        _debug('audio chunk -> ${chunk.length} bytes');
-        _audioService.playAudio(chunk);
-      },
-    );
-
-    await _socketService.connect(
-      serverUrl: ApiConstants.socketUrl,
-      sessionId: sessionId,
     );
   }
 
@@ -165,20 +75,87 @@ class StreamingChatCubit extends Cubit<StreamingChatState> {
       ),
     );
 
-    _socketService.sendMessage(text);
+    unawaited(_streamAssistantResponse(text));
     return true;
   }
 
   Future<void> startNewChat() async {
-    _socketService.disconnect();
     emit(const StreamingChatState.initial());
     await bootstrap();
   }
 
-  @override
-  Future<void> close() {
-    _socketService.disconnect();
-    _audioService.dispose();
-    return super.close();
+  Future<void> _streamAssistantResponse(String text) async {
+    try {
+      await for (final chunk in _chatApiProvider.streamMessage(
+        question: text,
+        sessionId: state.sessionId,
+      )) {
+        _debug('api chunk -> ${chunk.replaceAll('\n', ' ').trim()}');
+        _appendAssistantChunk(chunk);
+      }
+
+      emit(
+        state.copyWith(
+          status: StreamingChatStatus.connected,
+          isAssistantTyping: false,
+          errorMessage: null,
+        ),
+      );
+    } catch (error) {
+      _debug('api_error -> $error');
+      final updatedMessages = List.of(state.messages);
+      if (updatedMessages.isNotEmpty && updatedMessages.last.isLoading) {
+        updatedMessages.removeLast();
+      }
+      emit(
+        state.copyWith(
+          messages: updatedMessages,
+          status: StreamingChatStatus.failure,
+          errorMessage: error.toString(),
+          isAssistantTyping: false,
+        ),
+      );
+    }
+  }
+
+  void _appendAssistantChunk(String text) {
+    final messages = List.of(state.messages);
+
+    if (messages.isNotEmpty && messages.last.isLoading) {
+      messages.removeLast();
+      messages.add(
+        Message(
+          id: const Uuid().v4(),
+          text: text,
+          role: 'assistant',
+          timestamp: DateTime.now(),
+          isFromAdmin: true,
+          fromAi: true,
+        ),
+      );
+    } else if (messages.isNotEmpty && messages.last.role == 'assistant') {
+      final last = messages.removeLast();
+      messages.add(last.copyWith(text: last.text + text));
+    } else {
+      messages.add(
+        Message(
+          id: const Uuid().v4(),
+          text: text,
+          role: 'assistant',
+          timestamp: DateTime.now(),
+          isFromAdmin: true,
+          fromAi: true,
+        ),
+      );
+    }
+
+    emit(
+      state.copyWith(
+        messages: messages,
+        status: StreamingChatStatus.sending,
+        isAssistantTyping: false,
+        errorMessage: null,
+      ),
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:chat_bot_app/bloc/auth/auth_cubit.dart';
 import 'package:chat_bot_app/screens/main_shell.dart';
+import 'package:chat_bot_app/screens/signup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
+                          color: primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -148,6 +149,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                       ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SignupScreen(),
+                            ),
+                          );
+                        },
+                        child: const Text("Don't have an account? Sign up"),
+                      ),
                     ],
                   ),
                 ),
@@ -189,8 +201,8 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             filled: true,
             fillColor: isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.black.withOpacity(0.05),
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
