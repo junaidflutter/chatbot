@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local fallback database used when MongoDB is unavailable
+.local_data/

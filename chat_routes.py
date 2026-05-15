@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from constants import (
+    CHAT_STREAM_ROUTE,
     CHAT_ROUTE,
     HEALTH_ROUTE,
     HEALTH_STATUS,
@@ -38,6 +40,29 @@ async def chat_with_bot(request: ChatRequest, current_user=Depends(get_current_u
             status_code=HTTP_INTERNAL_SERVER_ERROR,
             detail=f"{SERVICE_ERROR_PREFIX}: {str(e)}",
         )
+
+
+@router.post(CHAT_STREAM_ROUTE)
+async def stream_chat_with_bot(
+    request: ChatRequest,
+    current_user=Depends(get_current_user),
+):
+    async def stream_answer():
+        try:
+            async for chunk in get_rag_service().stream_answer_question(
+                question=request.question,
+                session_id=request.session_id,
+                user_id=current_user["id"],
+            ):
+                if chunk:
+                    yield chunk
+        except Exception as exc:
+            yield f"\n{SERVICE_ERROR_PREFIX}: {str(exc)}"
+
+    return StreamingResponse(
+        stream_answer(),
+        media_type="text/plain; charset=utf-8",
+    )
 
 
 @router.get(HEALTH_ROUTE)

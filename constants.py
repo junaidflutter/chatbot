@@ -159,6 +159,8 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 
 CHAT_ROUTE = "/chat"
 
+CHAT_STREAM_ROUTE = "/chat/stream"
+
 CHAT_HISTORY_ROUTE = "/chat/history"
 
 SOCKET_IO_PATH = "socket.io"
